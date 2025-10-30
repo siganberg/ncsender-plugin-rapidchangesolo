@@ -131,6 +131,7 @@ function createToolLoad(settings, toolNumber) {
   return `
     G53 G0 Z${settings.zSafe}
     (MSG, RCS:LOAD_MESSAGE)
+    G4 P0.1
     M0
     G53 G0 X${settings.pocket1.x} Y${settings.pocket1.y}
     G53 G0 Z${settings.zEngagement + settings.zSpinOff}
@@ -599,12 +600,12 @@ export async function onLoad(ctx) {
   const MESSAGE_MAP = {
     'RCS:UNLOAD_MESSAGE': {
       title: 'Unloading',
-      message: 'Tool change detected. Ensure the pocket is empty and keep hands clear. The spindle will descend into the pocket during the unload process. <strong>PRESS</strong> and <strong>HOLD</strong> <em>"Abort"</em> or <em>"Unload"</em> to proceed.',
+      message: 'Ensure the pocket is empty and keep hands clear. The spindle will descend into the pocket during the unload process. <strong>PRESS</strong> and <strong>HOLD</strong> <em>"Abort"</em> or <em>"Unload"</em> to proceed.',
       continueLabel: 'Unload'
     },
     'RCS:LOAD_MESSAGE': {
       title: 'Loading',
-      message: 'Tool change detected. Confirm the correct tool is placed securely in the pocket and keep hands clear. The spindle will descend to pick up the tool during the load process. <strong>PRESS</strong> and <strong>HOLD</strong> <em>"Abort"</em> or <em>"Load"</em> to proceed.',
+      message: 'Confirm the correct tool is placed securely in the pocket and keep hands clear. The spindle will descend to pick up the tool during the load process. <strong>PRESS</strong> and <strong>HOLD</strong> <em>"Abort"</em> or <em>"Load"</em> to proceed.',
       continueLabel: 'Load'
     }
   };
