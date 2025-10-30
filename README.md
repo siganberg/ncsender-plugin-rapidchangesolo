@@ -28,9 +28,8 @@ Install this plugin in ncSender through the Plugins interface.
 - Clear instructions with emphasized safety warnings
 
 ### Configuration
-- Single pocket positioning (X/Y coordinates)
-- Orientation selection (X or Y axis)
-- Direction selection (Positive or Negative)
+- Pocket location (X/Y/Z coordinates)
+- Tool setter location (X/Y coordinates)
 - Advanced JSON-configurable parameters:
   - Z-axis positions (engagement, safe, spin-off, retreat)
   - RPM settings (load/unload)
@@ -46,7 +45,7 @@ Install this plugin in ncSender through the Plugins interface.
 ## Usage
 
 1. Configure the pocket location using the "Grab" button while positioned at the pocket
-2. Set orientation (X or Y) and direction (Positive or Negative)
+2. Configure the tool setter location using the "Grab" button while positioned at the tool setter
 3. Save configuration
 4. Use M6 commands in your G-code for automated tool changes
 5. Use $TLS command for tool length measurement

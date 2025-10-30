@@ -3,11 +3,6 @@
  * Simple rapid tool change workflow helper for manual tool changers.
  */
 
-const ORIENTATIONS = ['X', 'Y'];
-const DIRECTIONS = ['Positive', 'Negative'];
-
-const sanitizeOrientation = (value) => (ORIENTATIONS.includes(value) ? value : 'Y');
-const sanitizeDirection = (value) => (DIRECTIONS.includes(value) ? value : 'Negative');
 const toFiniteNumber = (value, fallback = 0) => {
   const num = Number.parseFloat(value);
   return Number.isFinite(num) ? num : fallback;
@@ -19,12 +14,13 @@ const sanitizeCoords = (coords = {}) => ({
 });
 
 const buildInitialConfig = (raw = {}) => ({
-  // UI Settings
-  orientation: sanitizeOrientation(raw.orientation),
-  direction: sanitizeDirection(raw.direction),
-
   // Position Settings
   pocket1: sanitizeCoords(raw.pocket1),
+  toolSetter: sanitizeCoords(raw.toolSetter),
+
+  // UI Toggle Settings
+  autoSwap: raw.autoSwap === true,
+  confirmUnload: raw.confirmUnload !== false,
 
   // Advanced Settings (no UI, JSON only)
   // Z-axis Settings
@@ -39,7 +35,6 @@ const buildInitialConfig = (raw = {}) => ({
   engageFeedrate: toFiniteNumber(raw.engageFeedrate, 3500),
 
   // Tool Length Setter Settings
-  pocketDistance: toFiniteNumber(raw.pocketDistance, 45),
   zProbeStart: toFiniteNumber(raw.zProbeStart, -10),
   seekDistance: toFiniteNumber(raw.seekDistance, 50),
   seekFeedrate: toFiniteNumber(raw.seekFeedrate, 500)
@@ -67,29 +62,11 @@ const formatGCode = (gcode) => {
     .filter(line => line.length > 0);
 };
 
-// Helper: Compute tool setter position based on orientation and direction
-function computeToolSetterPosition(settings) {
-  const directionMultiplier = settings.direction === 'Negative' ? -1 : 1;
-
-  if (settings.orientation === 'Y') {
-    return {
-      x: settings.pocket1.x,
-      y: settings.pocket1.y + (settings.pocketDistance * directionMultiplier)
-    };
-  } else {
-    return {
-      x: settings.pocket1.x + (settings.pocketDistance * directionMultiplier),
-      y: settings.pocket1.y
-    };
-  }
-}
-
 // Helper: Create tool length setter routine
 function createToolLengthSetRoutine(settings) {
-  const toolSetter = computeToolSetterPosition(settings);
   return `
     G53 G0 Z${settings.zSafe}
-    G53 G0 X${toolSetter.x} Y${toolSetter.y}
+    G53 G0 X${settings.toolSetter.x} Y${settings.toolSetter.y}
     G53 G0 Z${settings.zProbeStart}
     G43.1 Z0
     G38.2 G91 Z-${settings.seekDistance} F${settings.seekFeedrate}
@@ -108,19 +85,27 @@ function createToolLengthSetRoutine(settings) {
 }
 
 // Helper: Tool unload routine
-function createToolUnload(settings) {
-  return `
-    G53 G0 Z${settings.zSafe}
-    (MSG, RCS:UNLOAD_MESSAGE)
-    M0
-    G53 G0 X${settings.pocket1.x} Y${settings.pocket1.y}
+function createToolUnload(settings, targetTool) {
+  const needsConfirmation = (settings.confirmUnload && settings.autoSwap) || targetTool === 0;
+  const messageCode = settings.autoSwap ? 'RCS:UNLOAD_MESSAGE' :  'RCS:UNLOAD_MESSAGE_MANUAL';
+  const confirmationLines = needsConfirmation ? `
+    (MSG, ${messageCode})
+    M0` : '';
+
+  const autoSwapSequence = settings.autoSwap ? `
     G53 G0 Z${settings.zEngagement + settings.zSpinOff}
     G65P6
     M4 S${settings.unloadRpm}
     G53 G1 Z${settings.zEngagement} F${settings.engageFeedrate}
     G53 G1 Z${settings.zEngagement + settings.zRetreat} F${settings.engageFeedrate}
     G65P6
-    M5
+    M5` : '';
+
+  return `
+    G53 G0 Z${settings.zSafe}
+    G53 G0 X${settings.pocket1.x} Y${settings.pocket1.y}
+    ${confirmationLines}
+    ${autoSwapSequence}
     M61 Q0
     G53 G0 Z${settings.zSafe}
   `.trim();
@@ -128,12 +113,8 @@ function createToolUnload(settings) {
 
 // Helper: Tool load routine
 function createToolLoad(settings, toolNumber) {
-  return `
-    G53 G0 Z${settings.zSafe}
-    (MSG, RCS:LOAD_MESSAGE)
-    G4 P0.1
-    M0
-    G53 G0 X${settings.pocket1.x} Y${settings.pocket1.y}
+  const messageCode = settings.autoSwap ? 'RCS:LOAD_MESSAGE' : 'RCS:LOAD_MESSAGE_MANUAL';
+  const autoSwapSequence = settings.autoSwap ? `
     G53 G0 Z${settings.zEngagement + settings.zSpinOff}
     G65P6
     M3 S${settings.loadRpm}
@@ -144,20 +125,27 @@ function createToolLoad(settings, toolNumber) {
     G53 G1 Z${settings.zEngagement} F${settings.engageFeedrate}
     G53 G1 Z${settings.zEngagement + settings.zRetreat} F${settings.engageFeedrate}
     G65P6
-    M5
+    M5` : '';
+
+  return `
+    G53 G0 Z${settings.zSafe}
+    G53 G0 X${settings.pocket1.x} Y${settings.pocket1.y}
+    (MSG, ${messageCode})
+    M0
+    ${autoSwapSequence}
     M61 Q${toolNumber}
     G53 G0 Z${settings.zSafe}
   `.trim();
 }
 
 // Build unload tool section
-function buildUnloadTool(settings, currentTool) {
+function buildUnloadTool(settings, currentTool, targetTool) {
   if (currentTool === 0) {
     return '';
   }
   return `
     (Unload current tool T${currentTool})
-    ${createToolUnload(settings)}
+    ${createToolUnload(settings, targetTool)}
   `.trim();
 }
 
@@ -178,7 +166,7 @@ function buildToolChangeProgram(settings, currentTool, toolNumber) {
   const tlsRoutine = createToolLengthSetRoutine(settings);
 
   // Build sections
-  const unloadSection = buildUnloadTool(settings, currentTool);
+  const unloadSection = buildUnloadTool(settings, currentTool, toolNumber);
   const loadSection = buildLoadTool(settings, toolNumber, tlsRoutine);
 
   // Assemble complete program with return to units wrapper
@@ -598,16 +586,27 @@ export async function onLoad(ctx) {
   }
 
   const MESSAGE_MAP = {
-    'RCS:UNLOAD_MESSAGE': {
+     'RCS:LOAD_MESSAGE_MANUAL': {
+      title: 'Loading',
+      message: 'Please install the new bit securely, then <strong>press and hold</strong> <em>"Continue"</em> to proceed or <em>"Abort"</em> to cancel.',
+      continueLabel: 'Continue'
+    },
+    'RCS:UNLOAD_MESSAGE_MANUAL': {
       title: 'Unloading',
-      message: 'Ensure the pocket is empty and keep hands clear. The spindle will descend into the pocket during the unload process. <strong>PRESS</strong> and <strong>HOLD</strong> <em>"Abort"</em> or <em>"Unload"</em> to proceed.',
-      continueLabel: 'Unload'
+      message: 'Please remove the current bit, then <strong>press and hold</strong> <em>"Continue"</em> to proceed or <em>"Abort"</em> to cancel.',
+      continueLabel: 'Continue'
     },
     'RCS:LOAD_MESSAGE': {
       title: 'Loading',
       message: 'Confirm the correct tool is placed securely in the pocket and keep hands clear. The spindle will descend to pick up the tool during the load process. <strong>PRESS</strong> and <strong>HOLD</strong> <em>"Abort"</em> or <em>"Load"</em> to proceed.',
-      continueLabel: 'Load'
+      continueLabel: 'Continue'
+    },
+    'RCS:UNLOAD_MESSAGE': {
+      title: 'Unloading',
+      message: 'Ensure the pocket is empty and keep hands clear. The spindle will descend into the pocket during the unload process. <strong>PRESS</strong> and <strong>HOLD</strong> <em>"Abort"</em> or <em>"Unload"</em> to proceed.',
+      continueLabel: 'Continue'
     }
+
   };
 
   ctx.registerEventHandler('ws:cnc-data', async (data) => {
@@ -688,7 +687,7 @@ export async function onLoad(ctx) {
           display: grid;
           grid-template-rows: auto 1fr auto;
           overflow: hidden;
-          width: 500px;
+          width: 800px;
         }
 
         .rcs-header {
@@ -702,6 +701,18 @@ export async function onLoad(ctx) {
         }
 
         .rcs-container {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+        }
+
+        .rcs-left-column {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .rcs-right-column {
           display: flex;
           flex-direction: column;
           gap: 16px;
@@ -712,6 +723,9 @@ export async function onLoad(ctx) {
           border: 1px solid var(--color-border);
           border-radius: var(--radius-small);
           padding: 12px 16px;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
         }
 
         .rcs-axis-title {
@@ -726,6 +740,8 @@ export async function onLoad(ctx) {
           display: flex;
           justify-content: space-around;
           gap: 16px;
+          flex: 1;
+          align-items: center;
         }
 
         .rcs-axis-item {
@@ -755,10 +771,16 @@ export async function onLoad(ctx) {
           gap: 12px;
         }
 
-        .rcs-form-row-wide {
+        .rcs-form-row-2col {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
-          gap: 16px;
+          gap: 12px;
+        }
+
+        .rcs-form-row-3col {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
         }
 
         .rcs-form-group {
@@ -766,19 +788,6 @@ export async function onLoad(ctx) {
           flex-direction: column;
           gap: 8px;
           align-items: center;
-        }
-
-        .rcs-form-group-horizontal {
-          display: flex;
-          flex-direction: row;
-          align-items: center;
-          justify-content: space-between;
-          gap: 16px;
-        }
-
-        .rcs-form-group-horizontal .rcs-form-label {
-          white-space: nowrap;
-          min-width: fit-content;
         }
 
         .rcs-form-label {
@@ -794,7 +803,7 @@ export async function onLoad(ctx) {
           background: var(--color-surface);
           color: var(--color-text-primary);
           font-size: 0.9rem;
-          text-align: right;
+          text-align: center;
           width: 100%;
           max-width: 120px;
         }
@@ -827,45 +836,6 @@ export async function onLoad(ctx) {
           justify-content: center;
         }
 
-        .rcs-slider-toggle {
-          position: relative;
-          display: flex;
-          background: var(--color-surface);
-          border-radius: 999px;
-          padding: 4px;
-          border: 1px solid var(--color-border);
-          width: 100px;
-        }
-
-        .rcs-slider-option {
-          flex: 1;
-          padding: 6px 12px;
-          font-size: 0.85rem;
-          font-weight: 500;
-          color: var(--color-text-secondary);
-          background: transparent;
-          cursor: pointer;
-          transition: color 0.2s ease;
-          text-align: center;
-          z-index: 2;
-          position: relative;
-          user-select: none;
-        }
-
-        .rcs-slider-option.active {
-          color: #fff;
-        }
-
-        .rcs-slider-indicator {
-          position: absolute;
-          height: calc(100% - 8px);
-          background: var(--gradient-accent);
-          border-radius: 999px;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          z-index: 1;
-          top: 4px;
-        }
-
         .rcs-pocket-group {
           background: color-mix(in srgb, var(--color-surface) 40%, var(--color-surface-muted) 60%);
           border: 1px solid var(--color-border);
@@ -875,16 +845,72 @@ export async function onLoad(ctx) {
 
         .rcs-pocket-header {
           display: flex;
-          justify-content: center;
+          justify-content: space-between;
           align-items: center;
           gap: 12px;
           margin-bottom: 16px;
+        }
+
+        .rcs-pocket-header-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex: 1;
+          justify-content: center;
         }
 
         .rcs-pocket-title {
           font-size: 0.95rem;
           font-weight: 600;
           color: var(--color-text-primary);
+        }
+
+        .rcs-toggle-switch {
+          position: relative;
+          width: 56px;
+          height: 28px;
+          background: var(--color-border);
+          border-radius: 14px;
+          cursor: pointer;
+          transition: background 0.3s ease;
+        }
+
+        .rcs-toggle-switch.active {
+          background: var(--gradient-accent);
+        }
+
+        .rcs-toggle-switch-knob {
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          width: 24px;
+          height: 24px;
+          background: white;
+          border-radius: 50%;
+          transition: transform 0.3s ease;
+        }
+
+        .rcs-toggle-switch.active .rcs-toggle-switch-knob {
+          transform: translateX(28px);
+        }
+
+        .rcs-toggle-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-top: 12px;
+          padding: 4px 0;
+        }
+
+        .rcs-toggle-label {
+          font-size: 0.9rem;
+          font-weight: 500;
+          color: var(--color-text-primary);
+        }
+
+        .rcs-toggle-row.disabled {
+          opacity: 0.4;
+          pointer-events: none;
         }
 
         .rcs-button {
@@ -959,36 +985,36 @@ export async function onLoad(ctx) {
       <div class="rcs-dialog-wrapper">
         <div class="rcs-content">
           <div class="rcs-container">
-            <!-- Machine Coordinates Display -->
-            <div class="rcs-axis-card">
-              <div class="rcs-axis-title">Machine Coordinates</div>
-              <div class="rcs-axis-values">
-                <div class="rcs-axis-item">
-                  <span class="rcs-axis-label">X</span>
-                  <span class="rcs-axis-value" id="rcs-axis-x">0.000</span>
+            <!-- Left Column -->
+            <div class="rcs-left-column">
+              <!-- Tool Setter Location -->
+            <div class="rcs-pocket-group">
+              <div class="rcs-pocket-header">
+                <div class="rcs-pocket-header-left">
+                  <span class="rcs-pocket-title">Tool Setter Location</span>
+                  <button type="button" class="rcs-button rcs-button-grab" id="rcs-toolsetter-grab">Grab</button>
                 </div>
-                <div class="rcs-axis-item">
-                  <span class="rcs-axis-label">Y</span>
-                  <span class="rcs-axis-value" id="rcs-axis-y">0.000</span>
+              </div>
+
+              <div class="rcs-form-row-2col">
+                <div class="rcs-form-group">
+                  <label class="rcs-form-label">X</label>
+                  <input type="number" class="rcs-input" id="rcs-toolsetter-x" value="0" step="0.001">
                 </div>
-                <div class="rcs-axis-item">
-                  <span class="rcs-axis-label">Z</span>
-                  <span class="rcs-axis-value" id="rcs-axis-z">0.000</span>
+                <div class="rcs-form-group">
+                  <label class="rcs-form-label">Y</label>
+                  <input type="number" class="rcs-input" id="rcs-toolsetter-y" value="0" step="0.001">
                 </div>
               </div>
             </div>
 
-            <!-- Controls Group -->
-            <div class="rcs-control-group">
-              <nc-step-control></nc-step-control>
-              <nc-jog-control></nc-jog-control>
-            </div>
-
-            <!-- Location -->
+            <!-- Swap Bit Location -->
             <div class="rcs-pocket-group">
               <div class="rcs-pocket-header">
-                <span class="rcs-pocket-title">Location</span>
-                <button type="button" class="rcs-button rcs-button-grab" id="rcs-pocket1-grab">Grab</button>
+                <div class="rcs-pocket-header-left">
+                  <span class="rcs-pocket-title">Swap Bit Location</span>
+                  <button type="button" class="rcs-button rcs-button-grab" id="rcs-pocket1-grab">Grab</button>
+                </div>
               </div>
 
               <div class="rcs-form-row">
@@ -1006,24 +1032,47 @@ export async function onLoad(ctx) {
                 </div>
               </div>
 
-              <div class="rcs-form-row-wide" style="margin-top: 16px;">
-                <div class="rcs-form-group-horizontal">
-                  <label class="rcs-form-label">Orientation</label>
-                  <div class="rcs-slider-toggle" id="rcs-orientation-toggle">
-                    <span class="rcs-slider-option active" data-value="Y">Y</span>
-                    <span class="rcs-slider-option" data-value="X">X</span>
-                    <div class="rcs-slider-indicator"></div>
-                  </div>
+              <div class="rcs-toggle-row">
+                <span class="rcs-toggle-label">Auto Swap</span>
+                <div class="rcs-toggle-switch" id="rcs-autoswap-toggle">
+                  <div class="rcs-toggle-switch-knob"></div>
                 </div>
+              </div>
 
-                <div class="rcs-form-group-horizontal">
-                  <label class="rcs-form-label">Direction</label>
-                  <div class="rcs-slider-toggle" id="rcs-direction-toggle">
-                    <span class="rcs-slider-option active" data-value="Negative">-</span>
-                    <span class="rcs-slider-option" data-value="Positive">+</span>
-                    <div class="rcs-slider-indicator"></div>
+              <div class="rcs-toggle-row disabled" id="rcs-confirm-unload-row">
+                <span class="rcs-toggle-label">Confirm Unload</span>
+                <div class="rcs-toggle-switch active" id="rcs-confirm-unload-toggle">
+                  <div class="rcs-toggle-switch-knob"></div>
+                </div>
+              </div>
+            </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="rcs-right-column">
+              <!-- Machine Coordinates Display -->
+              <div class="rcs-axis-card">
+                <div class="rcs-axis-title">Machine Coordinates</div>
+                <div class="rcs-axis-values">
+                  <div class="rcs-axis-item">
+                    <span class="rcs-axis-label">X</span>
+                    <span class="rcs-axis-value" id="rcs-axis-x">0.000</span>
+                  </div>
+                  <div class="rcs-axis-item">
+                    <span class="rcs-axis-label">Y</span>
+                    <span class="rcs-axis-value" id="rcs-axis-y">0.000</span>
+                  </div>
+                  <div class="rcs-axis-item">
+                    <span class="rcs-axis-label">Z</span>
+                    <span class="rcs-axis-value" id="rcs-axis-z">0.000</span>
                   </div>
                 </div>
+              </div>
+
+              <!-- Controls Group -->
+              <div class="rcs-control-group">
+                <nc-step-control></nc-step-control>
+                <nc-jog-control></nc-jog-control>
               </div>
             </div>
           </div>
@@ -1101,67 +1150,36 @@ export async function onLoad(ctx) {
             return null;
           };
 
-          const initSliderToggle = (toggleId) => {
-            const toggle = document.getElementById(toggleId);
-            const options = toggle.querySelectorAll('.rcs-slider-option');
-            const indicator = toggle.querySelector('.rcs-slider-indicator');
-
-            const updateIndicator = (activeOption) => {
-              indicator.style.left = (activeOption.offsetLeft) + 'px';
-              indicator.style.width = activeOption.getBoundingClientRect().width + 'px';
-            };
-
-            options.forEach((option) => {
-              option.addEventListener('click', () => {
-                options.forEach((opt) => opt.classList.remove('active'));
-                option.classList.add('active');
-                updateIndicator(option);
-              });
-            });
-
-            const activeOption = toggle.querySelector('.rcs-slider-option.active');
-            if (activeOption) {
-              setTimeout(() => updateIndicator(activeOption), 0);
-            }
-          };
-
-          const getSliderValue = (toggleId) => {
-            const toggle = document.getElementById(toggleId);
-            if (!toggle) return null;
-            const activeOption = toggle.querySelector('.rcs-slider-option.active');
-            return activeOption ? activeOption.getAttribute('data-value') : null;
-          };
-
-          const setSliderValue = (toggleId, value) => {
-            const toggle = document.getElementById(toggleId);
-            if (!toggle || !value) return;
-
-            const options = toggle.querySelectorAll('.rcs-slider-option');
-            const indicator = toggle.querySelector('.rcs-slider-indicator');
-
-            options.forEach((option) => {
-              if (option.getAttribute('data-value') === value) {
-                options.forEach((opt) => opt.classList.remove('active'));
-                option.classList.add('active');
-
-                setTimeout(() => {
-                  indicator.style.left = (option.offsetLeft) + 'px';
-                  indicator.style.width = option.getBoundingClientRect().width + 'px';
-                }, 0);
-              }
-            });
-          };
-
           const applyInitialSettings = () => {
             if (initialConfig.pocket1) {
               getInput('rcs-pocket1-x').value = initialConfig.pocket1.x || 0;
               getInput('rcs-pocket1-y').value = initialConfig.pocket1.y || 0;
             }
 
+            if (initialConfig.toolSetter) {
+              getInput('rcs-toolsetter-x').value = initialConfig.toolSetter.x || 0;
+              getInput('rcs-toolsetter-y').value = initialConfig.toolSetter.y || 0;
+            }
+
             getInput('rcs-zengagement').value = initialConfig.zEngagement || -50;
 
-            setSliderValue('rcs-orientation-toggle', initialConfig.orientation || 'Y');
-            setSliderValue('rcs-direction-toggle', initialConfig.direction || 'Negative');
+            const autoSwapToggle = document.getElementById('rcs-autoswap-toggle');
+            if (autoSwapToggle) {
+              if (initialConfig.autoSwap) {
+                autoSwapToggle.classList.add('active');
+              } else {
+                autoSwapToggle.classList.remove('active');
+              }
+            }
+
+            const confirmUnloadToggle = document.getElementById('rcs-confirm-unload-toggle');
+            if (confirmUnloadToggle) {
+              if (initialConfig.confirmUnload) {
+                confirmUnloadToggle.classList.add('active');
+              } else {
+                confirmUnloadToggle.classList.remove('active');
+              }
+            }
           };
 
           const grabCoordinates = async (prefix) => {
@@ -1181,9 +1199,10 @@ export async function onLoad(ctx) {
               getInput(\`rcs-\${prefix}-x\`).value = (coords.x || 0).toFixed(3);
               getInput(\`rcs-\${prefix}-y\`).value = (coords.y || 0).toFixed(3);
 
-              // Grab Z coordinate with -5 offset for zEngagement
-              const zEngagement = (coords.z || 0) - 5;
-              getInput('rcs-zengagement').value = zEngagement.toFixed(3);
+              if (prefix === POCKET_PREFIX) {
+                const zEngagement = (coords.z || 0) - 5;
+                getInput('rcs-zengagement').value = zEngagement.toFixed(3);
+              }
 
             } catch (error) {
               console.error('[RapidChangeSolo] Failed to grab coordinates:', error);
@@ -1207,14 +1226,21 @@ export async function onLoad(ctx) {
           };
 
           const gatherFormData = () => {
+            const autoSwapToggle = document.getElementById('rcs-autoswap-toggle');
+            const confirmUnloadToggle = document.getElementById('rcs-confirm-unload-toggle');
+
             return {
               pocket1: {
                 x: parseFloat(getInput('rcs-pocket1-x').value) || 0,
                 y: parseFloat(getInput('rcs-pocket1-y').value) || 0
               },
+              toolSetter: {
+                x: parseFloat(getInput('rcs-toolsetter-x').value) || 0,
+                y: parseFloat(getInput('rcs-toolsetter-y').value) || 0
+              },
               zEngagement: parseFloat(getInput('rcs-zengagement').value) || -50,
-              orientation: getSliderValue('rcs-orientation-toggle'),
-              direction: getSliderValue('rcs-direction-toggle')
+              autoSwap: autoSwapToggle ? autoSwapToggle.classList.contains('active') : true,
+              confirmUnload: confirmUnloadToggle ? confirmUnloadToggle.classList.contains('active') : true
             };
           };
 
@@ -1318,13 +1344,40 @@ export async function onLoad(ctx) {
             }
           };
 
+          const autoSwapToggle = document.getElementById('rcs-autoswap-toggle');
+          const confirmUnloadToggle = document.getElementById('rcs-confirm-unload-toggle');
+          const confirmUnloadRow = document.getElementById('rcs-confirm-unload-row');
+
+          const updateConfirmUnloadState = () => {
+            if (autoSwapToggle && confirmUnloadRow) {
+              if (autoSwapToggle.classList.contains('active')) {
+                confirmUnloadRow.classList.remove('disabled');
+              } else {
+                confirmUnloadRow.classList.add('disabled');
+              }
+            }
+          };
+
+          if (autoSwapToggle) {
+            autoSwapToggle.addEventListener('click', function() {
+              autoSwapToggle.classList.toggle('active');
+              updateConfirmUnloadState();
+            });
+          }
+
+          if (confirmUnloadToggle) {
+            confirmUnloadToggle.addEventListener('click', function() {
+              confirmUnloadToggle.classList.toggle('active');
+            });
+          }
+
           window.addEventListener('message', handleServerStateUpdate);
 
           applyInitialSettings();
-          registerButton(POCKET_PREFIX, 'rcs-pocket1-grab');
+          updateConfirmUnloadState();
 
-          initSliderToggle('rcs-orientation-toggle');
-          initSliderToggle('rcs-direction-toggle');
+          registerButton(POCKET_PREFIX, 'rcs-pocket1-grab');
+          registerButton('toolsetter', 'rcs-toolsetter-grab');
 
           fetchInitialCoordinates();
         })();
