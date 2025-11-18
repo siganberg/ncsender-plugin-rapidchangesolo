@@ -10,7 +10,8 @@ const toFiniteNumber = (value, fallback = 0) => {
 
 const sanitizeCoords = (coords = {}) => ({
   x: toFiniteNumber(coords.x),
-  y: toFiniteNumber(coords.y)
+  y: toFiniteNumber(coords.y),
+  z: toFiniteNumber(coords.z)
 });
 
 const buildInitialConfig = (raw = {}) => ({
@@ -37,7 +38,7 @@ const buildInitialConfig = (raw = {}) => ({
   // Tool Length Setter Settings
   zProbeStart: toFiniteNumber(raw.zProbeStart, -10),
   seekDistance: toFiniteNumber(raw.seekDistance, 50),
-  seekFeedrate: toFiniteNumber(raw.seekFeedrate, 500)
+  seekFeedrate: toFiniteNumber(raw.seekFeedrate, 100)
 });
 
 const resolveServerPort = (pluginSettings = {}, appSettings = {}) => {
@@ -64,14 +65,16 @@ const formatGCode = (gcode) => {
 
 // Helper: Create tool length setter routine
 function createToolLengthSetRoutine(settings) {
+  const fineProbeFeedrate = settings.seekFeedrate < 75 ? settings.seekFeedrate : 75;
   return `
     G53 G0 Z${settings.zSafe}
     G53 G0 X${settings.toolSetter.x} Y${settings.toolSetter.y}
-    G53 G0 Z${settings.zProbeStart}
+    G53 G0 Z${settings.toolSetter.z}
     G43.1 Z0
     G38.2 G91 Z-${settings.seekDistance} F${settings.seekFeedrate}
     G0 G91 Z5
-    G38.2 G91 Z-5 F250
+    G4 P0.1
+    G38.2 G91 Z-5 F${fineProbeFeedrate}
     G91 G0 Z5
     G90
     #<_ofs_idx> = [#5220 * 20 + 5203]
@@ -723,7 +726,6 @@ export async function onLoad(ctx) {
           border: 1px solid var(--color-border);
           border-radius: var(--radius-small);
           padding: 12px 16px;
-          flex: 1;
           display: flex;
           flex-direction: column;
         }
@@ -740,7 +742,6 @@ export async function onLoad(ctx) {
           display: flex;
           justify-content: space-around;
           gap: 16px;
-          flex: 1;
           align-items: center;
         }
 
@@ -788,6 +789,27 @@ export async function onLoad(ctx) {
           flex-direction: column;
           gap: 8px;
           align-items: center;
+        }
+
+        .rcs-form-group-horizontal {
+          display: flex;
+          flex-direction: row;
+          gap: 12px;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px 0;
+        }
+
+        .rcs-form-group-horizontal .rcs-form-label {
+          white-space: nowrap;
+          flex-shrink: 1;
+          min-width: 0;
+        }
+
+        .rcs-form-group-horizontal .rcs-input {
+          width: 100px;
+          flex-shrink: 0;
+          min-width: 100px;
         }
 
         .rcs-form-label {
@@ -996,7 +1018,7 @@ export async function onLoad(ctx) {
                 </div>
               </div>
 
-              <div class="rcs-form-row-2col">
+              <div class="rcs-form-row-3col">
                 <div class="rcs-form-group">
                   <label class="rcs-form-label">X</label>
                   <input type="number" class="rcs-input" id="rcs-toolsetter-x" value="0" step="0.001">
@@ -1005,6 +1027,20 @@ export async function onLoad(ctx) {
                   <label class="rcs-form-label">Y</label>
                   <input type="number" class="rcs-input" id="rcs-toolsetter-y" value="0" step="0.001">
                 </div>
+                <div class="rcs-form-group">
+                  <label class="rcs-form-label">Z</label>
+                  <input type="number" class="rcs-input" id="rcs-toolsetter-z" value="0" step="0.001">
+                </div>
+              </div>
+
+              <div class="rcs-form-group-horizontal">
+                <label class="rcs-form-label">Seek Distance (mm)</label>
+                <input type="number" class="rcs-input" id="rcs-seek-distance" value="50" step="1" min="1">
+              </div>
+
+              <div class="rcs-form-group-horizontal">
+                <label class="rcs-form-label">Seek Feedrate (mm/min)</label>
+                <input type="number" class="rcs-input" id="rcs-seek-feedrate" value="100" step="10" min="1">
               </div>
             </div>
 
@@ -1088,6 +1124,7 @@ export async function onLoad(ctx) {
         (function() {
           const BASE_URL = '';
           const POCKET_PREFIX = 'pocket1';
+          const TOOLSETTER_PREFIX = 'toolsetter';
 
           const initialConfig = JSON.parse('${initialConfigJson}');
 
@@ -1159,9 +1196,12 @@ export async function onLoad(ctx) {
             if (initialConfig.toolSetter) {
               getInput('rcs-toolsetter-x').value = initialConfig.toolSetter.x || 0;
               getInput('rcs-toolsetter-y').value = initialConfig.toolSetter.y || 0;
+              getInput('rcs-toolsetter-z').value = initialConfig.toolSetter.z || 0;
             }
 
             getInput('rcs-zengagement').value = initialConfig.zEngagement || -50;
+            getInput('rcs-seek-distance').value = initialConfig.seekDistance || 50;
+            getInput('rcs-seek-feedrate').value = initialConfig.seekFeedrate || 100;
 
             const autoSwapToggle = document.getElementById('rcs-autoswap-toggle');
             if (autoSwapToggle) {
@@ -1204,6 +1244,10 @@ export async function onLoad(ctx) {
                 getInput('rcs-zengagement').value = zEngagement.toFixed(3);
               }
 
+              if (prefix === TOOLSETTER_PREFIX) {
+                getInput(\`rcs-\${prefix}-z\`).value = (coords.z || 0).toFixed(3);
+              }
+
             } catch (error) {
               console.error('[RapidChangeSolo] Failed to grab coordinates:', error);
             }
@@ -1236,9 +1280,12 @@ export async function onLoad(ctx) {
               },
               toolSetter: {
                 x: parseFloat(getInput('rcs-toolsetter-x').value) || 0,
-                y: parseFloat(getInput('rcs-toolsetter-y').value) || 0
+                y: parseFloat(getInput('rcs-toolsetter-y').value) || 0,
+                z: parseFloat(getInput('rcs-toolsetter-z').value) || 0
               },
               zEngagement: parseFloat(getInput('rcs-zengagement').value) || -50,
+              seekDistance: parseFloat(getInput('rcs-seek-distance').value) || 50,
+              seekFeedrate: parseFloat(getInput('rcs-seek-feedrate').value) || 100,
               autoSwap: autoSwapToggle ? autoSwapToggle.classList.contains('active') : true,
               confirmUnload: confirmUnloadToggle ? confirmUnloadToggle.classList.contains('active') : true
             };
