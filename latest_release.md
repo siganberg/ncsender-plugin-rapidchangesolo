@@ -1,5 +1,5 @@
 ## What's Changed
 
-### 🔧 Improvements
-- Updated minimum required Obsidian version to 0.3.19 for better compatibility
-- Added support for automatic plugin updates through the community plugin store
+### ✨ New Features
+- Added Z coordinate support for 3D positioning
+- Added configurable TLS probing parameters for enhanced connection control
