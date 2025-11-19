@@ -1,4 +1,4 @@
 ## What's Changed
 
-### ✨ New Features
-- Added support for multi-client synchronization using clear message functionality in modal dialogs
+### 🔧 Improvements
+- Updated minimum app version requirement to 0.3.34 for enhanced dialog persistence support
