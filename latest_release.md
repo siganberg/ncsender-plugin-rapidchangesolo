@@ -1,5 +1,4 @@
 ## What's Changed
 
 ### ✨ New Features
-- Added Z coordinate support for 3D positioning
-- Added configurable TLS probing parameters for enhanced connection control
+- Added support for multi-client synchronization using clear message functionality in modal dialogs
