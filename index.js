@@ -741,13 +741,6 @@ export async function onLoad(ctx) {
           flex-direction: column;
         }
 
-        .rcs-tool-settings-card {
-          background: color-mix(in srgb, var(--color-surface) 40%, var(--color-surface-muted) 60%);
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-small);
-          padding: 16px;
-          margin-bottom: 16px;
-        }
 
         .rcs-form-row-single {
           display: flex;
@@ -906,10 +899,18 @@ export async function onLoad(ctx) {
           background: color-mix(in srgb, var(--color-surface) 40%, var(--color-surface-muted) 60%);
           border: 1px solid var(--color-border);
           border-radius: var(--radius-small);
-          padding: 12px 16px;
+          padding: 16px;
           display: flex;
           flex-direction: column;
           gap: 16px;
+        }
+
+        .rcs-control-group .rcs-axis-values {
+          display: flex;
+          justify-content: space-around;
+          gap: 16px;
+          align-items: center;
+          margin-bottom: 8px;
         }
 
         .rcs-control-group nc-step-control {
@@ -1135,50 +1136,54 @@ export async function onLoad(ctx) {
                 </div>
               </div>
             </div>
+
+            <!-- Tool Settings Card -->
+            <div class="rcs-pocket-group">
+              <div class="rcs-pocket-header">
+                <div class="rcs-pocket-header-left">
+                  <span class="rcs-pocket-title">Tool Settings</span>
+                </div>
+              </div>
+
+              <div class="rcs-form-row-single">
+                <label class="rcs-form-label">Number of Tools</label>
+                <select class="rcs-select" id="rcs-number-of-tools">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                  <option value="6">6</option>
+                  <option value="7">7</option>
+                  <option value="8">8</option>
+                </select>
+              </div>
+
+              <div class="rcs-toggle-row">
+                <span class="rcs-toggle-label">Auto Swap</span>
+                <div class="rcs-toggle-switch" id="rcs-autoswap-toggle">
+                  <div class="rcs-toggle-switch-knob"></div>
+                </div>
+              </div>
+
+              <div class="rcs-toggle-row disabled" id="rcs-confirm-unload-row">
+                <span class="rcs-toggle-label">Confirm Unload</span>
+                <div class="rcs-toggle-switch active" id="rcs-confirm-unload-toggle">
+                  <div class="rcs-toggle-switch-knob"></div>
+                </div>
+              </div>
+            </div>
             </div>
 
             <!-- Right Column -->
             <div class="rcs-right-column">
-              <!-- Tool Settings Card -->
-              <div class="rcs-tool-settings-card">
+              <!-- Controls Group with Machine Coordinates -->
+              <div class="rcs-control-group">
                 <div class="rcs-pocket-header">
                   <div class="rcs-pocket-header-left">
-                    <span class="rcs-pocket-title">Tool Settings</span>
+                    <span class="rcs-pocket-title">Machine Coordinates</span>
                   </div>
                 </div>
-
-                <div class="rcs-form-row-single">
-                  <label class="rcs-form-label">Number of Tools</label>
-                  <select class="rcs-select" id="rcs-number-of-tools">
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                    <option value="6">6</option>
-                    <option value="7">7</option>
-                    <option value="8">8</option>
-                  </select>
-                </div>
-
-                <div class="rcs-toggle-row">
-                  <span class="rcs-toggle-label">Auto Swap</span>
-                  <div class="rcs-toggle-switch" id="rcs-autoswap-toggle">
-                    <div class="rcs-toggle-switch-knob"></div>
-                  </div>
-                </div>
-
-                <div class="rcs-toggle-row disabled" id="rcs-confirm-unload-row">
-                  <span class="rcs-toggle-label">Confirm Unload</span>
-                  <div class="rcs-toggle-switch active" id="rcs-confirm-unload-toggle">
-                    <div class="rcs-toggle-switch-knob"></div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Machine Coordinates Display -->
-              <div class="rcs-axis-card">
-                <div class="rcs-axis-title">Machine Coordinates</div>
                 <div class="rcs-axis-values">
                   <div class="rcs-axis-item">
                     <span class="rcs-axis-label">X</span>
@@ -1193,10 +1198,6 @@ export async function onLoad(ctx) {
                     <span class="rcs-axis-value" id="rcs-axis-z">0.000</span>
                   </div>
                 </div>
-              </div>
-
-              <!-- Controls Group -->
-              <div class="rcs-control-group">
                 <nc-step-control></nc-step-control>
                 <nc-jog-control></nc-jog-control>
               </div>
