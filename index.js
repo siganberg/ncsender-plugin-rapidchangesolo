@@ -752,6 +752,7 @@ export async function onLoad(ctx) {
         .rcs-form-row-single {
           display: flex;
           align-items: center;
+          justify-content: space-between;
           gap: 12px;
           margin-bottom: 12px;
         }
@@ -763,8 +764,8 @@ export async function onLoad(ctx) {
         }
 
         .rcs-form-row-single .rcs-select {
-          flex: 1;
-          min-width: 80px;
+          flex: 0 0 auto;
+          width: 80px;
         }
 
         .rcs-select {
@@ -777,6 +778,13 @@ export async function onLoad(ctx) {
           font-family: inherit;
           cursor: pointer;
           transition: border-color 0.2s ease;
+          text-align: right;
+          text-align-last: right;
+        }
+
+        .rcs-select option {
+          text-align: right;
+          direction: rtl;
         }
 
         .rcs-select:hover {
