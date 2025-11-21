@@ -729,7 +729,7 @@ export async function onLoad(ctx) {
         .rcs-right-column {
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          height: 100%;
         }
 
         .rcs-axis-card {
@@ -903,6 +903,8 @@ export async function onLoad(ctx) {
           display: flex;
           flex-direction: column;
           gap: 16px;
+          flex: 1;
+          height: 100%;
         }
 
         .rcs-control-group .rcs-axis-values {
