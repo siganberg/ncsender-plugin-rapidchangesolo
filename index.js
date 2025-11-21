@@ -571,9 +571,11 @@ export async function onLoad(ctx) {
   // Check if plugin has been configured (has required settings)
   const isConfigured = !!(pluginSettings.pocket1);
 
+  // Get saved number of tools (default to 1 if not set)
+  const toolCount = pluginSettings.numberOfTools || 1;
+
   // Set tool.source to indicate this plugin controls the tool settings
   // Only enable manual and TLS tools if plugin is configured
-  // Always set count to 0 for manual tool changer
   await new Promise(resolve => setTimeout(resolve, 100));
 
   try {
@@ -582,7 +584,7 @@ export async function onLoad(ctx) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         tool: {
-          count: 0,
+          count: toolCount,
           source: 'com.ncsender.rapidchangesolo',
           manual: isConfigured,
           tls: isConfigured
@@ -591,7 +593,7 @@ export async function onLoad(ctx) {
     });
 
     if (response.ok) {
-      ctx.log(`Tool settings synchronized: count=0, manual=${isConfigured}, tls=${isConfigured} (source: com.ncsender.rapidchangesolo)`);
+      ctx.log(`Tool settings synchronized: count=${toolCount}, manual=${isConfigured}, tls=${isConfigured} (source: com.ncsender.rapidchangesolo)`);
     } else {
       ctx.log(`Failed to sync tool settings: ${response.status}`);
     }
