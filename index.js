@@ -1502,9 +1502,73 @@ export async function onLoad(ctx) {
 
           if (autoSwapToggle) {
             autoSwapToggle.addEventListener('click', function() {
-              autoSwapToggle.classList.toggle('active');
-              updateConfirmUnloadState();
+              const isCurrentlyActive = autoSwapToggle.classList.contains('active');
+
+              // If turning ON, show warning
+              if (!isCurrentlyActive) {
+                showAutoSwapWarning(function(confirmed) {
+                  if (confirmed) {
+                    autoSwapToggle.classList.add('active');
+                    updateConfirmUnloadState();
+                  }
+                });
+              } else {
+                // Turning OFF - no warning needed
+                autoSwapToggle.classList.remove('active');
+                updateConfirmUnloadState();
+              }
             });
+          }
+
+          function showAutoSwapWarning(callback) {
+            // Create overlay
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+
+            // Create warning container
+            const container = document.createElement('div');
+            container.style.cssText = 'background: var(--color-surface); border-radius: var(--radius-medium); padding: 32px; max-width: 500px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);';
+
+            // Create header
+            const header = document.createElement('div');
+            header.style.cssText = 'font-size: 1.5rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 24px; text-align: center;';
+            header.textContent = 'Auto Swap Warning';
+
+            // Create message
+            const message = document.createElement('div');
+            message.style.cssText = 'font-size: 1rem; line-height: 1.6; color: var(--color-text-primary); background: color-mix(in srgb, var(--color-warning) 15%, transparent); border: 2px solid var(--color-warning); border-radius: var(--radius-small); padding: 16px; margin-bottom: 16px;';
+            message.innerHTML = '<strong>Auto Swap is designed specifically for RapidChangeSolo tool holders.</strong><br><br>When enabled, the spindle will automatically spin during tool swapping operations. This is required for the RapidChangeSolo mechanism to properly engage and release tools.<br><br><strong>Only enable this if you are using a RapidChangeSolo tool holder system.</strong>';
+
+            // Create buttons container
+            const actions = document.createElement('div');
+            actions.style.cssText = 'display: flex; justify-content: center; gap: 16px; margin-top: 8px;';
+
+            // Cancel button
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.style.cssText = 'padding: 12px 32px; border: none; border-radius: var(--radius-small); font-weight: 600; font-size: 1rem; cursor: pointer; background: var(--color-surface-muted); color: var(--color-text-primary); min-width: 120px;';
+            cancelBtn.onclick = function() {
+              document.body.removeChild(overlay);
+              callback(false);
+            };
+
+            // Confirm button
+            const confirmBtn = document.createElement('button');
+            confirmBtn.textContent = 'I Understand, Enable';
+            confirmBtn.style.cssText = 'padding: 12px 32px; border: none; border-radius: var(--radius-small); font-weight: 600; font-size: 1rem; cursor: pointer; background: var(--gradient-accent); color: white; min-width: 120px;';
+            confirmBtn.onclick = function() {
+              document.body.removeChild(overlay);
+              callback(true);
+            };
+
+            // Assemble
+            actions.appendChild(cancelBtn);
+            actions.appendChild(confirmBtn);
+            container.appendChild(header);
+            container.appendChild(message);
+            container.appendChild(actions);
+            overlay.appendChild(container);
+            document.body.appendChild(overlay);
           }
 
           if (confirmUnloadToggle) {
