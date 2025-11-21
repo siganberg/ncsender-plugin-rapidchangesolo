@@ -19,6 +19,9 @@ const buildInitialConfig = (raw = {}) => ({
   pocket1: sanitizeCoords(raw.pocket1),
   toolSetter: sanitizeCoords(raw.toolSetter),
 
+  // Tool Settings
+  numberOfTools: toFiniteNumber(raw.numberOfTools, 1),
+
   // UI Toggle Settings
   autoSwap: raw.autoSwap === true,
   confirmUnload: raw.confirmUnload !== false,
@@ -738,6 +741,45 @@ export async function onLoad(ctx) {
           flex-direction: column;
         }
 
+        .rcs-settings-card {
+          background: color-mix(in srgb, var(--color-surface) 40%, var(--color-surface-muted) 60%);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-small);
+          padding: 16px;
+          margin-bottom: 16px;
+        }
+
+        .rcs-settings-title {
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: var(--color-text-secondary);
+          margin-bottom: 12px;
+          text-align: center;
+        }
+
+        .rcs-select {
+          width: 100%;
+          padding: 8px 12px;
+          background: var(--color-surface);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-small);
+          color: var(--color-text-primary);
+          font-size: 0.9rem;
+          font-family: inherit;
+          cursor: pointer;
+          transition: border-color 0.2s ease;
+        }
+
+        .rcs-select:hover {
+          border-color: var(--color-accent);
+        }
+
+        .rcs-select:focus {
+          outline: none;
+          border-color: var(--color-accent);
+          box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent);
+        }
+
         .rcs-axis-title {
           font-size: 0.85rem;
           font-weight: 600;
@@ -1075,25 +1117,44 @@ export async function onLoad(ctx) {
                   <input type="number" class="rcs-input" id="rcs-zengagement" value="-50" step="0.001">
                 </div>
               </div>
-
-              <div class="rcs-toggle-row">
-                <span class="rcs-toggle-label">Auto Swap</span>
-                <div class="rcs-toggle-switch" id="rcs-autoswap-toggle">
-                  <div class="rcs-toggle-switch-knob"></div>
-                </div>
-              </div>
-
-              <div class="rcs-toggle-row disabled" id="rcs-confirm-unload-row">
-                <span class="rcs-toggle-label">Confirm Unload</span>
-                <div class="rcs-toggle-switch active" id="rcs-confirm-unload-toggle">
-                  <div class="rcs-toggle-switch-knob"></div>
-                </div>
-              </div>
             </div>
             </div>
 
             <!-- Right Column -->
             <div class="rcs-right-column">
+              <!-- Settings Card -->
+              <div class="rcs-settings-card">
+                <div class="rcs-settings-title">Settings</div>
+
+                <div class="rcs-form-group" style="margin-bottom: 12px;">
+                  <label class="rcs-form-label">Number of Tools</label>
+                  <select class="rcs-select" id="rcs-number-of-tools">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                  </select>
+                </div>
+
+                <div class="rcs-toggle-row">
+                  <span class="rcs-toggle-label">Auto Swap</span>
+                  <div class="rcs-toggle-switch" id="rcs-autoswap-toggle">
+                    <div class="rcs-toggle-switch-knob"></div>
+                  </div>
+                </div>
+
+                <div class="rcs-toggle-row disabled" id="rcs-confirm-unload-row">
+                  <span class="rcs-toggle-label">Confirm Unload</span>
+                  <div class="rcs-toggle-switch active" id="rcs-confirm-unload-toggle">
+                    <div class="rcs-toggle-switch-knob"></div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Machine Coordinates Display -->
               <div class="rcs-axis-card">
                 <div class="rcs-axis-title">Machine Coordinates</div>
@@ -1210,6 +1271,7 @@ export async function onLoad(ctx) {
             getInput('rcs-zengagement').value = initialConfig.zEngagement || -50;
             getInput('rcs-seek-distance').value = initialConfig.seekDistance || 50;
             getInput('rcs-seek-feedrate').value = initialConfig.seekFeedrate || 100;
+            getInput('rcs-number-of-tools').value = initialConfig.numberOfTools || 1;
 
             const autoSwapToggle = document.getElementById('rcs-autoswap-toggle');
             if (autoSwapToggle) {
@@ -1294,6 +1356,7 @@ export async function onLoad(ctx) {
               zEngagement: parseFloat(getInput('rcs-zengagement').value) || -50,
               seekDistance: parseFloat(getInput('rcs-seek-distance').value) || 50,
               seekFeedrate: parseFloat(getInput('rcs-seek-feedrate').value) || 100,
+              numberOfTools: parseInt(getInput('rcs-number-of-tools').value) || 1,
               autoSwap: autoSwapToggle ? autoSwapToggle.classList.contains('active') : true,
               confirmUnload: confirmUnloadToggle ? confirmUnloadToggle.classList.contains('active') : true
             };
@@ -1333,7 +1396,7 @@ export async function onLoad(ctx) {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     tool: {
-                      count: 0,
+                      count: payload.numberOfTools || 1,
                       source: 'com.ncsender.rapidchangesolo',
                       manual: true,
                       tls: true
