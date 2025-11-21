@@ -90,7 +90,7 @@ function createToolLengthSetRoutine(settings) {
 // Helper: Tool unload routine
 function createToolUnload(settings, targetTool) {
   const needsConfirmation = (settings.confirmUnload && settings.autoSwap) || targetTool === 0;
-  const messageCode = settings.autoSwap ? 'RCS:UNLOAD_MESSAGE' :  'RCS:UNLOAD_MESSAGE_MANUAL';
+  const messageCode = settings.autoSwap ? 'PLUGIN_RCS:UNLOAD_MESSAGE' :  'PLUGIN_RCS:UNLOAD_MESSAGE_MANUAL';
   const confirmationLines = needsConfirmation ? `
     (MSG, ${messageCode})
     M0` : '';
@@ -116,7 +116,7 @@ function createToolUnload(settings, targetTool) {
 
 // Helper: Tool load routine
 function createToolLoad(settings, toolNumber) {
-  const messageCode = settings.autoSwap ? 'RCS:LOAD_MESSAGE' : 'RCS:LOAD_MESSAGE_MANUAL';
+  const messageCode = settings.autoSwap ? 'PLUGIN_RCS:LOAD_MESSAGE' : 'PLUGIN_RCS:LOAD_MESSAGE_MANUAL';
   const autoSwapSequence = settings.autoSwap ? `
     G53 G0 Z${settings.zEngagement + settings.zSpinOff}
     G65P6
@@ -184,7 +184,7 @@ function buildToolChangeProgram(settings, currentTool, toolNumber) {
     G[#<return_units>]
     G90
     (End of RapidChangeSolo Plugin Sequence)
-    (MSG, TOOL CHANGE COMPLETE: T${toolNumber})
+    (MSG,TOOL_CHANGE_COMPLETE)
   `.trim();
 
   return formatGCode(gcode);
@@ -210,7 +210,7 @@ function handleTLSCommand(commands, settings, ctx) {
         ${toolLengthSetRoutine}
         G[#<return_units>]
         G90
-        (MSG, TOOL CHANGE COMPLETE)
+        (MSG,TOOL_CHANGE_COMPLETE)
     `.trim();
   const tlsProgram = formatGCode(gcode);
 
@@ -597,22 +597,22 @@ export async function onLoad(ctx) {
   }
 
   const MESSAGE_MAP = {
-     'RCS:LOAD_MESSAGE_MANUAL': {
+     'PLUGIN_RCS:LOAD_MESSAGE_MANUAL': {
       title: 'Loading',
       message: 'Please install the new bit securely, then <strong>press and hold</strong> <em>"Continue"</em> to proceed or <em>"Abort"</em> to cancel.',
       continueLabel: 'Continue'
     },
-    'RCS:UNLOAD_MESSAGE_MANUAL': {
+    'PLUGIN_RCS:UNLOAD_MESSAGE_MANUAL': {
       title: 'Unloading',
       message: 'Please remove the current bit, then <strong>press and hold</strong> <em>"Continue"</em> to proceed or <em>"Abort"</em> to cancel.',
       continueLabel: 'Continue'
     },
-    'RCS:LOAD_MESSAGE': {
+    'PLUGIN_RCS:LOAD_MESSAGE': {
       title: 'Loading',
       message: 'Confirm the correct tool is placed securely in the pocket and keep hands clear. The spindle will descend to pick up the tool during the load process. <strong>PRESS</strong> and <strong>HOLD</strong> <em>"Abort"</em> or <em>"Load"</em> to proceed.',
       continueLabel: 'Continue'
     },
-    'RCS:UNLOAD_MESSAGE': {
+    'PLUGIN_RCS:UNLOAD_MESSAGE': {
       title: 'Unloading',
       message: 'Ensure the pocket is empty and keep hands clear. The spindle will descend into the pocket during the unload process. <strong>PRESS</strong> and <strong>HOLD</strong> <em>"Abort"</em> or <em>"Unload"</em> to proceed.',
       continueLabel: 'Continue'
@@ -623,7 +623,7 @@ export async function onLoad(ctx) {
   ctx.registerEventHandler('ws:cnc-data', async (data) => {
     if (typeof data === 'string') {
       const upperData = data.toUpperCase();
-      if (upperData.includes('[MSG') && upperData.includes('RCS:')) {
+      if (upperData.includes('[MSG') && upperData.includes('PLUGIN_RCS:')) {
         for (const [code, config] of Object.entries(MESSAGE_MAP)) {
           if (upperData.includes(code)) {
             showSafetyWarningDialog(ctx, config.title, config.message, config.continueLabel);
