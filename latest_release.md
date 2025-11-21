@@ -1,4 +1,5 @@
 ## What's Changed
 
 ### 🔧 Improvements
-- Updated minimum app version requirement to 0.3.34 for enhanced dialog persistence support
+- Updated minimum app version requirement for better compatibility
+- Standardized tool change completion messaging for improved reliability
