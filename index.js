@@ -741,7 +741,7 @@ export async function onLoad(ctx) {
           flex-direction: column;
         }
 
-        .rcs-settings-card {
+        .rcs-tool-settings-card {
           background: color-mix(in srgb, var(--color-surface) 40%, var(--color-surface-muted) 60%);
           border: 1px solid var(--color-border);
           border-radius: var(--radius-small);
@@ -749,16 +749,25 @@ export async function onLoad(ctx) {
           margin-bottom: 16px;
         }
 
-        .rcs-settings-title {
-          font-size: 0.85rem;
-          font-weight: 600;
-          color: var(--color-text-secondary);
+        .rcs-form-row-single {
+          display: flex;
+          align-items: center;
+          gap: 12px;
           margin-bottom: 12px;
-          text-align: center;
+        }
+
+        .rcs-form-row-single .rcs-form-label {
+          flex: 0 0 auto;
+          margin-bottom: 0;
+          white-space: nowrap;
+        }
+
+        .rcs-form-row-single .rcs-select {
+          flex: 1;
+          min-width: 80px;
         }
 
         .rcs-select {
-          width: 100%;
           padding: 8px 12px;
           background: var(--color-surface);
           border: 1px solid var(--color-border);
@@ -1122,11 +1131,15 @@ export async function onLoad(ctx) {
 
             <!-- Right Column -->
             <div class="rcs-right-column">
-              <!-- Settings Card -->
-              <div class="rcs-settings-card">
-                <div class="rcs-settings-title">Settings</div>
+              <!-- Tool Settings Card -->
+              <div class="rcs-tool-settings-card">
+                <div class="rcs-pocket-header">
+                  <div class="rcs-pocket-header-left">
+                    <span class="rcs-pocket-title">Tool Settings</span>
+                  </div>
+                </div>
 
-                <div class="rcs-form-group" style="margin-bottom: 12px;">
+                <div class="rcs-form-row-single">
                   <label class="rcs-form-label">Number of Tools</label>
                   <select class="rcs-select" id="rcs-number-of-tools">
                     <option value="1">1</option>
