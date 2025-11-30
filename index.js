@@ -187,7 +187,6 @@ function buildToolChangeProgram(settings, currentTool, toolNumber) {
     G[#<return_units>]
     G90
     (End of RapidChangeSolo Plugin Sequence)
-    (MSG,TOOL_CHANGE_COMPLETE)
   `.trim();
 
   return formatGCode(gcode);
@@ -213,7 +212,6 @@ function handleTLSCommand(commands, settings, ctx) {
         ${toolLengthSetRoutine}
         G[#<return_units>]
         G90
-        (MSG,TOOL_CHANGE_COMPLETE)
     `.trim();
   const tlsProgram = formatGCode(gcode);
 
@@ -1591,7 +1589,7 @@ export async function onLoad(ctx) {
         })();
       </script>
     `,
-      { size: 'large' }
+      { size: 'large', closable: false }
     );
   }, {
     icon: 'logo.png'

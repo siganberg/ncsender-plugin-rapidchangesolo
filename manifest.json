@@ -2,7 +2,7 @@
   "id": "com.ncsender.rapidchangesolo",
   "name": "Rapid Change Solo",
   "version": "0.1.7",
-  "minAppVersion": "0.3.42",
+  "minAppVersion": "0.3.60",
   "entry": "index.js",
   "author": "ncSender",
   "description": "Simple rapid tool change workflow helper for manual tool changers.",
