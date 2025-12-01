@@ -25,6 +25,7 @@ const buildInitialConfig = (raw = {}) => ({
   // UI Toggle Settings
   autoSwap: raw.autoSwap === true,
   confirmUnload: raw.confirmUnload !== false,
+  showMacroCommand: raw.showMacroCommand ?? false,
 
   // Advanced Settings (no UI, JSON only)
   // Z-axis Settings
@@ -214,22 +215,23 @@ function handleTLSCommand(commands, settings, ctx) {
         G90
     `.trim();
   const tlsProgram = formatGCode(gcode);
+  const showMacroCommand = settings.showMacroCommand ?? false;
 
   const expandedCommands = tlsProgram.map((line, index) => {
     if (index === 0) {
-      // First command - show $TLS in UI
+      // First command - show $TLS if hiding macro, otherwise show actual command
       return {
         command: line,
-        displayCommand: tlsCommand.command.trim(),
+        displayCommand: showMacroCommand ? null : tlsCommand.command.trim(),
         isOriginal: false
       };
     } else {
-      // Rest of commands - hide in UI (silent)
+      // Rest of commands - hide if not showing macro
       return {
         command: line,
         displayCommand: null,
         isOriginal: false,
-        meta: { silent: true }
+        meta: showMacroCommand ? {} : { silent: true }
       };
     }
   });
@@ -256,22 +258,23 @@ function handlePocket1Command(commands, settings, ctx) {
   `.trim();
 
   const pocket1Program = formatGCode(gcode);
+  const showMacroCommand = settings.showMacroCommand ?? false;
 
   const expandedCommands = pocket1Program.map((line, index) => {
     if (index === 0) {
-      // First command - show $POCKET1 in UI
+      // First command - show $POCKET1 if hiding macro, otherwise show actual command
       return {
         command: line,
-        displayCommand: pocket1Command.command.trim(),
+        displayCommand: showMacroCommand ? null : pocket1Command.command.trim(),
         isOriginal: false
       };
     } else {
-      // Rest of commands - hide in UI (silent)
+      // Rest of commands - hide if not showing macro
       return {
         command: line,
         displayCommand: null,
         isOriginal: false,
-        meta: { silent: true }
+        meta: showMacroCommand ? {} : { silent: true }
       };
     }
   });
@@ -535,23 +538,24 @@ function handleM6Command(commands, context, settings, ctx) {
   ctx.log(`M6 detected with tool T${toolNumber} ${location}, current tool: T${currentTool}, executing tool change program`);
 
   const toolChangeProgram = buildToolChangeProgram(settings, currentTool, toolNumber);
+  const showMacroCommand = settings.showMacroCommand ?? false;
 
   // Replace M6 command with expanded program
   const expandedCommands = toolChangeProgram.map((line, index) => {
     if (index === 0) {
-      // First command - show original M6 in UI
+      // First command - show M6 if hiding macro, otherwise show actual command
       return {
         command: line,
-        displayCommand: m6Command.command.trim(),
+        displayCommand: showMacroCommand ? null : m6Command.command.trim(),
         isOriginal: false
       };
     } else {
-      // Rest of commands - hide in UI (silent)
+      // Rest of commands - hide if not showing macro
       return {
         command: line,
         displayCommand: null,
         isOriginal: false,
-        meta: { silent: true }
+        meta: showMacroCommand ? {} : { silent: true }
       };
     }
   });
@@ -1174,6 +1178,13 @@ export async function onLoad(ctx) {
                   <div class="rcs-toggle-switch-knob"></div>
                 </div>
               </div>
+
+              <div class="rcs-toggle-row">
+                <span class="rcs-toggle-label">Show Command</span>
+                <div class="rcs-toggle-switch" id="rcs-show-macro-command-toggle">
+                  <div class="rcs-toggle-switch-knob"></div>
+                </div>
+              </div>
             </div>
             </div>
 
@@ -1314,6 +1325,15 @@ export async function onLoad(ctx) {
                 confirmUnloadToggle.classList.remove('active');
               }
             }
+
+            const showMacroCommandToggle = document.getElementById('rcs-show-macro-command-toggle');
+            if (showMacroCommandToggle) {
+              if (initialConfig.showMacroCommand) {
+                showMacroCommandToggle.classList.add('active');
+              } else {
+                showMacroCommandToggle.classList.remove('active');
+              }
+            }
           };
 
           const grabCoordinates = async (prefix) => {
@@ -1366,6 +1386,7 @@ export async function onLoad(ctx) {
           const gatherFormData = () => {
             const autoSwapToggle = document.getElementById('rcs-autoswap-toggle');
             const confirmUnloadToggle = document.getElementById('rcs-confirm-unload-toggle');
+            const showMacroCommandToggle = document.getElementById('rcs-show-macro-command-toggle');
 
             return {
               pocket1: {
@@ -1382,7 +1403,8 @@ export async function onLoad(ctx) {
               seekFeedrate: parseFloat(getInput('rcs-seek-feedrate').value) || 100,
               numberOfTools: parseInt(getInput('rcs-number-of-tools').value) || 1,
               autoSwap: autoSwapToggle ? autoSwapToggle.classList.contains('active') : true,
-              confirmUnload: confirmUnloadToggle ? confirmUnloadToggle.classList.contains('active') : true
+              confirmUnload: confirmUnloadToggle ? confirmUnloadToggle.classList.contains('active') : true,
+              showMacroCommand: showMacroCommandToggle ? showMacroCommandToggle.classList.contains('active') : false
             };
           };
 
@@ -1574,6 +1596,13 @@ export async function onLoad(ctx) {
           if (confirmUnloadToggle) {
             confirmUnloadToggle.addEventListener('click', function() {
               confirmUnloadToggle.classList.toggle('active');
+            });
+          }
+
+          const showMacroCommandToggle = document.getElementById('rcs-show-macro-command-toggle');
+          if (showMacroCommandToggle) {
+            showMacroCommandToggle.addEventListener('click', function() {
+              showMacroCommandToggle.classList.toggle('active');
             });
           }
 
