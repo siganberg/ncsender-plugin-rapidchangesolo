@@ -120,7 +120,7 @@ function createToolUnload(settings, targetTool) {
 
 // Helper: Tool load routine
 function createToolLoad(settings, toolNumber) {
-  const messageCode = settings.autoSwap ? 'PLUGIN_RCS:LOAD_MESSAGE' : 'PLUGIN_RCS:LOAD_MESSAGE_MANUAL';
+  const messageCode = settings.autoSwap ? `PLUGIN_RCS:LOAD_MESSAGE_${toolNumber}` : `PLUGIN_RCS:LOAD_MESSAGE_MANUAL_${toolNumber}`;
   const autoSwapSequence = settings.autoSwap ? `
     G53 G0 Z${settings.zEngagement + settings.zSpinOff}
     G65P6
@@ -604,9 +604,9 @@ export async function onLoad(ctx) {
   }
 
   const MESSAGE_MAP = {
-     'PLUGIN_RCS:LOAD_MESSAGE_MANUAL': {
+    'PLUGIN_RCS:LOAD_MESSAGE_MANUAL': {
       title: 'Loading',
-      message: 'Please install the new bit securely, then <strong>press and hold</strong> <em>"Continue"</em> to proceed or <em>"Abort"</em> to cancel.',
+      message: 'Please install {toolNumber} securely, then <strong>press and hold</strong> <em>"Continue"</em> to proceed or <em>"Abort"</em> to cancel.',
       continueLabel: 'Continue'
     },
     'PLUGIN_RCS:UNLOAD_MESSAGE_MANUAL': {
@@ -616,7 +616,7 @@ export async function onLoad(ctx) {
     },
     'PLUGIN_RCS:LOAD_MESSAGE': {
       title: 'Loading',
-      message: 'Confirm the correct tool is placed securely in the pocket and keep hands clear. The spindle will descend to pick up the tool during the load process. <strong>PRESS</strong> and <strong>HOLD</strong> <em>"Abort"</em> or <em>"Load"</em> to proceed.',
+      message: 'Confirm {toolNumber} is placed securely in the pocket and keep hands clear. The spindle will descend to pick up the tool during the load process. <strong>PRESS</strong> and <strong>HOLD</strong> <em>"Abort"</em> or <em>"Load"</em> to proceed.',
       continueLabel: 'Continue'
     },
     'PLUGIN_RCS:UNLOAD_MESSAGE': {
@@ -632,7 +632,19 @@ export async function onLoad(ctx) {
       const upperData = data.toUpperCase();
       if (upperData.includes('[MSG') && upperData.includes('PLUGIN_RCS:')) {
         for (const [code, config] of Object.entries(MESSAGE_MAP)) {
-          if (upperData.includes(code)) {
+          const codePattern = code + '_';
+          const codeIndex = upperData.indexOf(codePattern);
+
+          if (codeIndex !== -1) {
+            const afterCode = upperData.substring(codeIndex + codePattern.length);
+            const toolNumberMatch = afterCode.match(/^(\d+)/);
+            const toolNumber = toolNumberMatch ? toolNumberMatch[1] : '';
+
+            const styledToolNumber = `<strong style="color: var(--color-accent);">T${toolNumber}</strong>`;
+            const message = config.message.replace('{toolNumber}', styledToolNumber);
+            showSafetyWarningDialog(ctx, config.title, message, config.continueLabel);
+            break;
+          } else if (upperData.includes(code)) {
             showSafetyWarningDialog(ctx, config.title, config.message, config.continueLabel);
             break;
           }
