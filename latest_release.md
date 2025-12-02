@@ -1,4 +1,4 @@
 ## What's Changed
 
 ### ✨ New Features
-- Added Show Command functionality
+- Increased maximum number of tools from 10 to 99, allowing for more comprehensive automation workflows
