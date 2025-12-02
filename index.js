@@ -32,7 +32,7 @@ const buildInitialConfig = (raw = {}) => ({
   zEngagement: toFiniteNumber(raw.zEngagement, -50),
   zSafe: toFiniteNumber(raw.zSafe, 0),
   zSpinOff: toFiniteNumber(raw.zSpinOff, 23),
-  zRetreat: toFiniteNumber(raw.zRetreat, 7),
+  zRetreat: toFiniteNumber(raw.zRetreat, 10),
 
   // Tool Change Settings
   unloadRpm: toFiniteNumber(raw.unloadRpm, 1500),
@@ -733,6 +733,7 @@ export async function onLoad(ctx) {
         .rcs-right-column {
           display: flex;
           flex-direction: column;
+          gap: 16px;
           height: 100%;
         }
 
@@ -762,11 +763,12 @@ export async function onLoad(ctx) {
 
         .rcs-form-row-single .rcs-select {
           flex: 0 0 auto;
-          width: 80px;
+          width: 70px;
         }
 
         .rcs-select {
           padding: 8px 12px;
+          padding-right: 24px;
           background: var(--color-surface);
           border: 1px solid var(--color-border);
           border-radius: var(--radius-small);
@@ -775,13 +777,17 @@ export async function onLoad(ctx) {
           font-family: inherit;
           cursor: pointer;
           transition: border-color 0.2s ease;
-          text-align: right;
-          text-align-last: right;
+          appearance: none;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2393a2b4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+          background-repeat: no-repeat;
+          background-position: right 8px center;
+          background-size: 16px;
         }
 
         .rcs-select option {
-          text-align: right;
-          direction: rtl;
+          text-align: left;
         }
 
         .rcs-select:hover {
@@ -1118,74 +1124,44 @@ export async function onLoad(ctx) {
               </div>
             </div>
 
-            <!-- Swap Bit Location -->
-            <div class="rcs-pocket-group">
-              <div class="rcs-pocket-header">
-                <div class="rcs-pocket-header-left">
-                  <span class="rcs-pocket-title">Swap Bit Location</span>
-                  <button type="button" class="rcs-button rcs-button-grab" id="rcs-pocket1-grab">Grab</button>
+              <!-- Tool Change Location -->
+              <div class="rcs-pocket-group">
+                <div class="rcs-pocket-header">
+                  <div class="rcs-pocket-header-left">
+                    <span class="rcs-pocket-title">Tool Change Location</span>
+                    <button type="button" class="rcs-button rcs-button-grab" id="rcs-pocket1-grab">Grab</button>
+                  </div>
                 </div>
-              </div>
 
-              <div class="rcs-form-row">
-                <div class="rcs-form-group">
-                  <label class="rcs-form-label">X</label>
-                  <input type="number" class="rcs-input" id="rcs-pocket1-x" value="0" step="0.001">
+                <div class="rcs-form-row">
+                  <div class="rcs-form-group">
+                    <label class="rcs-form-label">X</label>
+                    <input type="number" class="rcs-input" id="rcs-pocket1-x" value="0" step="0.001">
+                  </div>
+                  <div class="rcs-form-group">
+                    <label class="rcs-form-label">Y</label>
+                    <input type="number" class="rcs-input" id="rcs-pocket1-y" value="0" step="0.001">
+                  </div>
+                  <div class="rcs-form-group">
+                    <label class="rcs-form-label">Z</label>
+                    <input type="number" class="rcs-input" id="rcs-zengagement" value="-50" step="0.001">
+                  </div>
                 </div>
-                <div class="rcs-form-group">
-                  <label class="rcs-form-label">Y</label>
-                  <input type="number" class="rcs-input" id="rcs-pocket1-y" value="0" step="0.001">
-                </div>
-                <div class="rcs-form-group">
-                  <label class="rcs-form-label">Z</label>
-                  <input type="number" class="rcs-input" id="rcs-zengagement" value="-50" step="0.001">
-                </div>
-              </div>
-            </div>
 
-            <!-- Tool Settings Card -->
-            <div class="rcs-pocket-group">
-              <div class="rcs-pocket-header">
-                <div class="rcs-pocket-header-left">
-                  <span class="rcs-pocket-title">Tool Settings</span>
+                <div class="rcs-toggle-row">
+                  <span class="rcs-toggle-label">Auto Swap</span>
+                  <div class="rcs-toggle-switch" id="rcs-autoswap-toggle">
+                    <div class="rcs-toggle-switch-knob"></div>
+                  </div>
+                </div>
+
+                <div class="rcs-toggle-row disabled" id="rcs-confirm-unload-row">
+                  <span class="rcs-toggle-label">Confirm Unload</span>
+                  <div class="rcs-toggle-switch active" id="rcs-confirm-unload-toggle">
+                    <div class="rcs-toggle-switch-knob"></div>
+                  </div>
                 </div>
               </div>
-
-              <div class="rcs-form-row-single">
-                <label class="rcs-form-label">Number of Tools</label>
-                <select class="rcs-select" id="rcs-number-of-tools">
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                  <option value="4">4</option>
-                  <option value="5">5</option>
-                  <option value="6">6</option>
-                  <option value="7">7</option>
-                  <option value="8">8</option>
-                </select>
-              </div>
-
-              <div class="rcs-toggle-row">
-                <span class="rcs-toggle-label">Auto Swap</span>
-                <div class="rcs-toggle-switch" id="rcs-autoswap-toggle">
-                  <div class="rcs-toggle-switch-knob"></div>
-                </div>
-              </div>
-
-              <div class="rcs-toggle-row disabled" id="rcs-confirm-unload-row">
-                <span class="rcs-toggle-label">Confirm Unload</span>
-                <div class="rcs-toggle-switch active" id="rcs-confirm-unload-toggle">
-                  <div class="rcs-toggle-switch-knob"></div>
-                </div>
-              </div>
-
-              <div class="rcs-toggle-row">
-                <span class="rcs-toggle-label">Show Command</span>
-                <div class="rcs-toggle-switch" id="rcs-show-macro-command-toggle">
-                  <div class="rcs-toggle-switch-knob"></div>
-                </div>
-              </div>
-            </div>
             </div>
 
             <!-- Right Column -->
@@ -1213,6 +1189,28 @@ export async function onLoad(ctx) {
                 </div>
                 <nc-step-control></nc-step-control>
                 <nc-jog-control></nc-jog-control>
+              </div>
+
+              <!-- Tool Settings -->
+              <div class="rcs-pocket-group">
+                <div class="rcs-pocket-header">
+                  <div class="rcs-pocket-header-left">
+                    <span class="rcs-pocket-title">Tool Settings</span>
+                  </div>
+                </div>
+
+                <div class="rcs-form-row-single">
+                  <label class="rcs-form-label">Number of Tools</label>
+                  <select class="rcs-select" id="rcs-number-of-tools">
+                  </select>
+                </div>
+
+                <div class="rcs-toggle-row">
+                  <span class="rcs-toggle-label">Show Command</span>
+                  <div class="rcs-toggle-switch" id="rcs-show-macro-command-toggle">
+                    <div class="rcs-toggle-switch-knob"></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1607,6 +1605,17 @@ export async function onLoad(ctx) {
           }
 
           window.addEventListener('message', handleServerStateUpdate);
+
+          // Populate number of tools dropdown (1-99)
+          const numberOfToolsSelect = getInput('rcs-number-of-tools');
+          if (numberOfToolsSelect) {
+            for (let i = 1; i <= 99; i++) {
+              const option = document.createElement('option');
+              option.value = i;
+              option.textContent = i;
+              numberOfToolsSelect.appendChild(option);
+            }
+          }
 
           applyInitialSettings();
           updateConfirmUnloadState();
