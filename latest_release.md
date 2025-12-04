@@ -1,4 +1,4 @@
 ## What's Changed
 
 ### 🔧 Improvements
-- Added tool number to instructions for better clarity
+- Improved TLS connection speed for faster and more efficient communication
