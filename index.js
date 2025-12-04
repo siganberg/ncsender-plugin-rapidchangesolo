@@ -76,9 +76,7 @@ function createToolLengthSetRoutine(settings) {
     G53 G0 Z${settings.toolSetter.z}
     G43.1 Z0
     G38.2 G91 Z-${settings.seekDistance} F${settings.seekFeedrate}
-    G0 G91 Z5
-    G4 P0.1
-    G38.2 G91 Z-5 F${fineProbeFeedrate}
+    G38.4 G91 Z5 F${fineProbeFeedrate}
     G91 G0 Z5
     G90
     #<_ofs_idx> = [#5220 * 20 + 5203]
