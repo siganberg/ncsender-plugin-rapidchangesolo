@@ -1,4 +1,4 @@
 ## What's Changed
 
 ### 🔧 Improvements
-- Improved TLS connection speed for faster and more efficient communication
+- Reserved tool slot 99 for probe functionality, reducing available tools to 98
