@@ -1619,7 +1619,7 @@ export async function onLoad(ctx) {
           // Populate number of tools dropdown (1-99)
           const numberOfToolsSelect = getInput('rcs-number-of-tools');
           if (numberOfToolsSelect) {
-            for (let i = 1; i <= 99; i++) {
+            for (let i = 1; i <= 98; i++) {
               const option = document.createElement('option');
               option.value = i;
               option.textContent = i;
