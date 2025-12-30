@@ -1,4 +1,4 @@
 ## What's Changed
 
-### 🔧 Improvements
-- Reserved tool slot 99 for probe functionality, reducing available tools to 98
+### ✨ New Features
+- Added option to automatically perform Tool Length Sensing (TLS) after homing
