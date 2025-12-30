@@ -26,6 +26,7 @@ const buildInitialConfig = (raw = {}) => ({
   autoSwap: raw.autoSwap === true,
   confirmUnload: raw.confirmUnload !== false,
   showMacroCommand: raw.showMacroCommand ?? false,
+  performTlsAfterHome: raw.performTlsAfterHome ?? false,
 
   // Advanced Settings (no UI, JSON only)
   // Z-axis Settings
@@ -278,6 +279,62 @@ function handlePocket1Command(commands, settings, ctx) {
   });
 
   commands.splice(pocket1Index, 1, ...expandedCommands);
+}
+
+// Handle $H (home) command with conditional TLS
+function handleHomeCommand(commands, settings, ctx) {
+  const homeIndex = commands.findIndex(cmd =>
+    cmd.isOriginal && cmd.command.trim().toUpperCase() === '$H'
+  );
+
+  if (homeIndex === -1) {
+    return; // No $H command found
+  }
+
+  // Only handle if performTlsAfterHome is enabled
+  if (!settings.performTlsAfterHome) {
+    return;
+  }
+
+  ctx.log('$H command detected with performTlsAfterHome enabled, adding conditional TLS');
+
+  const homeCommand = commands[homeIndex];
+  const tlsRoutine = createToolLengthSetRoutine(settings);
+
+  const gcode = `
+    $H
+    #<return_units> = [20 + #<_metric>]
+    o100 IF [[#<_tool_offset> EQ 0] AND [#<_current_tool> NE 0]]
+      G21
+      ${tlsRoutine}
+      G53 G0 Z${settings.zSafe}
+      G4 P0
+      G53 G0 X0 Y0
+    o100 ENDIF
+    G[#<return_units>]
+  `.trim();
+
+  const homeProgram = formatGCode(gcode);
+  const showMacroCommand = settings.showMacroCommand ?? false;
+
+  const expandedCommands = homeProgram.map((line, index) => {
+    if (index === 0) {
+      return {
+        command: line,
+        displayCommand: showMacroCommand ? null : homeCommand.command.trim(),
+        isOriginal: false
+      };
+    } else {
+      return {
+        command: line,
+        displayCommand: null,
+        isOriginal: false,
+        meta: showMacroCommand ? {} : { silent: true }
+      };
+    }
+  });
+
+  commands.splice(homeIndex, 1, ...expandedCommands);
 }
 
 // Show safety warning dialog
@@ -661,6 +718,9 @@ export async function onLoad(ctx) {
     }
 
     const settings = buildInitialConfig(rawSettings);
+
+    // Handle $H (home) command with conditional TLS
+    handleHomeCommand(commands, settings, ctx);
 
     // Handle $TLS command
     handleTLSCommand(commands, settings, ctx);
@@ -1221,6 +1281,13 @@ export async function onLoad(ctx) {
                     <div class="rcs-toggle-switch-knob"></div>
                   </div>
                 </div>
+
+                <div class="rcs-toggle-row">
+                  <span class="rcs-toggle-label">Perform TLS after first HOME</span>
+                  <div class="rcs-toggle-switch" id="rcs-perform-tls-after-home-toggle">
+                    <div class="rcs-toggle-switch-knob"></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1342,6 +1409,15 @@ export async function onLoad(ctx) {
                 showMacroCommandToggle.classList.remove('active');
               }
             }
+
+            const performTlsAfterHomeToggle = document.getElementById('rcs-perform-tls-after-home-toggle');
+            if (performTlsAfterHomeToggle) {
+              if (initialConfig.performTlsAfterHome) {
+                performTlsAfterHomeToggle.classList.add('active');
+              } else {
+                performTlsAfterHomeToggle.classList.remove('active');
+              }
+            }
           };
 
           const grabCoordinates = async (prefix) => {
@@ -1395,6 +1471,7 @@ export async function onLoad(ctx) {
             const autoSwapToggle = document.getElementById('rcs-autoswap-toggle');
             const confirmUnloadToggle = document.getElementById('rcs-confirm-unload-toggle');
             const showMacroCommandToggle = document.getElementById('rcs-show-macro-command-toggle');
+            const performTlsAfterHomeToggle = document.getElementById('rcs-perform-tls-after-home-toggle');
 
             return {
               pocket1: {
@@ -1412,7 +1489,8 @@ export async function onLoad(ctx) {
               numberOfTools: parseInt(getInput('rcs-number-of-tools').value) || 1,
               autoSwap: autoSwapToggle ? autoSwapToggle.classList.contains('active') : true,
               confirmUnload: confirmUnloadToggle ? confirmUnloadToggle.classList.contains('active') : true,
-              showMacroCommand: showMacroCommandToggle ? showMacroCommandToggle.classList.contains('active') : false
+              showMacroCommand: showMacroCommandToggle ? showMacroCommandToggle.classList.contains('active') : false,
+              performTlsAfterHome: performTlsAfterHomeToggle ? performTlsAfterHomeToggle.classList.contains('active') : false
             };
           };
 
@@ -1611,6 +1689,13 @@ export async function onLoad(ctx) {
           if (showMacroCommandToggle) {
             showMacroCommandToggle.addEventListener('click', function() {
               showMacroCommandToggle.classList.toggle('active');
+            });
+          }
+
+          const performTlsAfterHomeToggle = document.getElementById('rcs-perform-tls-after-home-toggle');
+          if (performTlsAfterHomeToggle) {
+            performTlsAfterHomeToggle.addEventListener('click', function() {
+              performTlsAfterHomeToggle.classList.toggle('active');
             });
           }
 
