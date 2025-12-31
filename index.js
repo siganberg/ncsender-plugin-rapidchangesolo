@@ -1541,20 +1541,9 @@ export async function onLoad(ctx) {
           };
 
           const autoSwapToggle = document.getElementById('rcs-autoswap-toggle');
-          const confirmUnloadToggle = document.getElementById('rcs-confirm-unload-toggle');
-          const confirmUnloadRow = document.getElementById('rcs-confirm-unload-row');
 
           const updateRapidChangeState = () => {
             const isEnabled = autoSwapToggle && autoSwapToggle.classList.contains('active');
-
-            // Update Confirm Unload row
-            if (confirmUnloadRow) {
-              if (isEnabled) {
-                confirmUnloadRow.classList.remove('disabled');
-              } else {
-                confirmUnloadRow.classList.add('disabled');
-              }
-            }
 
             // Update X, Y, Z inputs and Grab button
             const pocket1X = getInput('rcs-pocket1-x');
@@ -1636,12 +1625,6 @@ export async function onLoad(ctx) {
             container.appendChild(actions);
             overlay.appendChild(container);
             document.body.appendChild(overlay);
-          }
-
-          if (confirmUnloadToggle) {
-            confirmUnloadToggle.addEventListener('click', function() {
-              confirmUnloadToggle.classList.toggle('active');
-            });
           }
 
           const showMacroCommandToggle = document.getElementById('rcs-show-macro-command-toggle');
