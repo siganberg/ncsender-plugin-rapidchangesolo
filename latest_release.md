@@ -1,4 +1,8 @@
 ## What's Changed
 
+### ✨ New Features
+- Added manual location setting for more flexible positioning
+- Added separate location setting for RapidChangeSolo
+
 ### 🔧 Improvements
-- Abort and Continue buttons now respond to a single tap instead of requiring a long press
+- Removed confirmation dialog when unloading for a smoother workflow
