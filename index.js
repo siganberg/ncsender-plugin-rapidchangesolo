@@ -18,13 +18,13 @@ const buildInitialConfig = (raw = {}) => ({
   // Position Settings
   pocket1: sanitizeCoords(raw.pocket1),
   toolSetter: sanitizeCoords(raw.toolSetter),
+  parking: sanitizeCoords(raw.parking),
 
   // Tool Settings
   numberOfTools: toFiniteNumber(raw.numberOfTools, 1),
 
   // UI Toggle Settings
   autoSwap: raw.autoSwap === true,
-  confirmUnload: raw.confirmUnload !== false,
   showMacroCommand: raw.showMacroCommand ?? false,
   performTlsAfterHome: raw.performTlsAfterHome ?? false,
 
@@ -92,56 +92,83 @@ function createToolLengthSetRoutine(settings) {
 
 // Helper: Tool unload routine
 function createToolUnload(settings, targetTool) {
-  const needsConfirmation = (settings.confirmUnload && settings.autoSwap) || targetTool === 0;
-  const messageCode = settings.autoSwap ? 'PLUGIN_RCS:UNLOAD_MESSAGE' :  'PLUGIN_RCS:UNLOAD_MESSAGE_MANUAL';
-  const confirmationLines = needsConfirmation ? `
+  const messageCode = settings.autoSwap ? 'PLUGIN_RCS:UNLOAD_MESSAGE' : 'PLUGIN_RCS:UNLOAD_MESSAGE_MANUAL';
+  const confirmationLines = `
     (MSG, ${messageCode})
-    M0` : '';
+    M0`;
 
-  const autoSwapSequence = settings.autoSwap ? `
-    G53 G0 Z${settings.zEngagement + settings.zSpinOff}
-    G65P6
-    M4 S${settings.unloadRpm}
-    G53 G1 Z${settings.zEngagement} F${settings.engageFeedrate}
-    G53 G1 Z${settings.zEngagement + settings.zRetreat} F${settings.engageFeedrate}
-    G65P6
-    M5` : '';
-
-  return `
-    G53 G0 Z${settings.zSafe}
-    G53 G0 X${settings.pocket1.x} Y${settings.pocket1.y}
-    ${confirmationLines}
-    ${autoSwapSequence}
-    M61 Q0
-    G53 G0 Z${settings.zSafe}
-  `.trim();
+  if (settings.autoSwap) {
+    // RapidChangeSolo ON: Move to manual location first, show message, then go to pocket1 to unload
+    return `
+      G53 G0 Z${settings.zSafe}
+      G53 G0 X${settings.parking.x} Y${settings.parking.y}
+      ${confirmationLines}
+      G53 G0 X${settings.pocket1.x} Y${settings.pocket1.y}
+      G53 G0 Z${settings.zEngagement + settings.zSpinOff}
+      G65P6
+      M4 S${settings.unloadRpm}
+      G53 G1 Z${settings.zEngagement} F${settings.engageFeedrate}
+      G53 G1 Z${settings.zEngagement + settings.zRetreat} F${settings.engageFeedrate}
+      G65P6
+      M5
+      M61 Q0
+      G53 G0 Z${settings.zSafe}
+      G53 G0 X${settings.parking.x} Y${settings.parking.y}
+    `.trim();
+  } else {
+    // RapidChangeSolo OFF: Move to manual tool change location with Z0
+    return `
+      G53 G0 Z${settings.zSafe}
+      G53 G0 X${settings.parking.x} Y${settings.parking.y}
+      G53 G0 Z0
+      ${confirmationLines}
+      M61 Q0
+    `.trim();
+  }
 }
 
 // Helper: Tool load routine
-function createToolLoad(settings, toolNumber) {
+function createToolLoad(settings, toolNumber, hasUnload) {
   const messageCode = settings.autoSwap ? `PLUGIN_RCS:LOAD_MESSAGE_${toolNumber}` : `PLUGIN_RCS:LOAD_MESSAGE_MANUAL_${toolNumber}`;
-  const autoSwapSequence = settings.autoSwap ? `
-    G53 G0 Z${settings.zEngagement + settings.zSpinOff}
-    G65P6
-    M3 S${settings.loadRpm}
-    G53 G1 Z${settings.zEngagement} F${settings.engageFeedrate}
-    G53 G1 Z${settings.zEngagement + settings.zRetreat} F${settings.engageFeedrate}
-    G53 G1 Z${settings.zEngagement} F${settings.engageFeedrate}
-    G53 G1 Z${settings.zEngagement + settings.zRetreat} F${settings.engageFeedrate}
-    G53 G1 Z${settings.zEngagement} F${settings.engageFeedrate}
-    G53 G1 Z${settings.zEngagement + settings.zRetreat} F${settings.engageFeedrate}
-    G65P6
-    M5` : '';
 
-  return `
-    G53 G0 Z${settings.zSafe}
-    G53 G0 X${settings.pocket1.x} Y${settings.pocket1.y}
-    (MSG, ${messageCode})
-    M0
-    ${autoSwapSequence}
-    M61 Q${toolNumber}
-    G53 G0 Z${settings.zSafe}
-  `.trim();
+  // If no unload happened, we need to move to manual location first
+  const moveToManualLocation = hasUnload ? '' : `
+      G53 G0 Z${settings.zSafe}
+      G53 G0 X${settings.parking.x} Y${settings.parking.y}`;
+
+  if (settings.autoSwap) {
+    // RapidChangeSolo ON: Go to manual location, show message, then move to pocket1 to load
+    return `
+      ${moveToManualLocation}
+      (MSG, ${messageCode})
+      M0
+      G53 G0 Z${settings.zSafe}
+      G53 G0 X${settings.pocket1.x} Y${settings.pocket1.y}
+      G53 G0 Z${settings.zEngagement + settings.zSpinOff}
+      G65P6
+      M3 S${settings.loadRpm}
+      G53 G1 Z${settings.zEngagement} F${settings.engageFeedrate}
+      G53 G1 Z${settings.zEngagement + settings.zRetreat} F${settings.engageFeedrate}
+      G53 G1 Z${settings.zEngagement} F${settings.engageFeedrate}
+      G53 G1 Z${settings.zEngagement + settings.zRetreat} F${settings.engageFeedrate}
+      G53 G1 Z${settings.zEngagement} F${settings.engageFeedrate}
+      G53 G1 Z${settings.zEngagement + settings.zRetreat} F${settings.engageFeedrate}
+      G65P6
+      M5
+      M61 Q${toolNumber}
+      G53 G0 Z${settings.zSafe}
+    `.trim();
+  } else {
+    // RapidChangeSolo OFF: Go to manual location with Z0, show message, user installs tool
+    return `
+      ${moveToManualLocation}
+      G53 G0 Z0
+      (MSG, ${messageCode})
+      M0
+      M61 Q${toolNumber}
+      G53 G0 Z${settings.zSafe}
+    `.trim();
+  }
 }
 
 // Build unload tool section
@@ -156,13 +183,13 @@ function buildUnloadTool(settings, currentTool, targetTool) {
 }
 
 // Build load tool section
-function buildLoadTool(settings, toolNumber, tlsRoutine) {
+function buildLoadTool(settings, toolNumber, tlsRoutine, hasUnload) {
   if (toolNumber === 0) {
     return '';
   }
   return `
     (Load new tool T${toolNumber})
-    ${createToolLoad(settings, toolNumber)}
+    ${createToolLoad(settings, toolNumber, hasUnload)}
     ${tlsRoutine}
   `.trim();
 }
@@ -170,10 +197,11 @@ function buildLoadTool(settings, toolNumber, tlsRoutine) {
 // Helper: Build tool change program
 function buildToolChangeProgram(settings, currentTool, toolNumber) {
   const tlsRoutine = createToolLengthSetRoutine(settings);
+  const hasUnload = currentTool !== 0;
 
   // Build sections
   const unloadSection = buildUnloadTool(settings, currentTool, toolNumber);
-  const loadSection = buildLoadTool(settings, toolNumber, tlsRoutine);
+  const loadSection = buildLoadTool(settings, toolNumber, tlsRoutine, hasUnload);
 
   // Assemble complete program with return to units wrapper
   const gcode = `
@@ -877,6 +905,12 @@ export async function onLoad(ctx) {
           border-color: var(--color-accent);
         }
 
+        .rcs-input:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+          background: var(--color-surface-muted);
+        }
+
         .rcs-control-group {
           background: color-mix(in srgb, var(--color-surface) 40%, var(--color-surface-muted) 60%);
           border: 1px solid var(--color-border);
@@ -1065,7 +1099,7 @@ export async function onLoad(ctx) {
             <div class="rcs-pocket-group">
               <div class="rcs-pocket-header">
                 <div class="rcs-pocket-header-left">
-                  <span class="rcs-pocket-title">Tool Setter Location</span>
+                  <span class="rcs-pocket-title">Tool Setter</span>
                   <button type="button" class="rcs-button rcs-button-grab" id="rcs-toolsetter-grab">Grab</button>
                 </div>
               </div>
@@ -1096,11 +1130,35 @@ export async function onLoad(ctx) {
               </div>
             </div>
 
-              <!-- Tool Change Location -->
+              <!-- Manual ToolChange Location -->
               <div class="rcs-pocket-group">
                 <div class="rcs-pocket-header">
                   <div class="rcs-pocket-header-left">
-                    <span class="rcs-pocket-title">Tool Change Location</span>
+                    <span class="rcs-pocket-title">Manual ToolChange</span>
+                    <button type="button" class="rcs-button rcs-button-grab" id="rcs-parking-grab">Grab</button>
+                  </div>
+                </div>
+
+                <div class="rcs-form-row-2col">
+                  <div class="rcs-form-group">
+                    <label class="rcs-form-label">X</label>
+                    <input type="number" class="rcs-input" id="rcs-parking-x" value="0" step="0.001">
+                  </div>
+                  <div class="rcs-form-group">
+                    <label class="rcs-form-label">Y</label>
+                    <input type="number" class="rcs-input" id="rcs-parking-y" value="0" step="0.001">
+                  </div>
+                </div>
+              </div>
+
+              <!-- RapidChangeSolo -->
+              <div class="rcs-pocket-group">
+                <div class="rcs-pocket-header">
+                  <div class="rcs-pocket-header-left">
+                    <div class="rcs-toggle-switch" id="rcs-autoswap-toggle">
+                      <div class="rcs-toggle-switch-knob"></div>
+                    </div>
+                    <span class="rcs-pocket-title">RapidChangeSolo</span>
                     <button type="button" class="rcs-button rcs-button-grab" id="rcs-pocket1-grab">Grab</button>
                   </div>
                 </div>
@@ -1120,19 +1178,6 @@ export async function onLoad(ctx) {
                   </div>
                 </div>
 
-                <div class="rcs-toggle-row">
-                  <span class="rcs-toggle-label">Auto Swap</span>
-                  <div class="rcs-toggle-switch" id="rcs-autoswap-toggle">
-                    <div class="rcs-toggle-switch-knob"></div>
-                  </div>
-                </div>
-
-                <div class="rcs-toggle-row disabled" id="rcs-confirm-unload-row">
-                  <span class="rcs-toggle-label">Confirm Unload</span>
-                  <div class="rcs-toggle-switch active" id="rcs-confirm-unload-toggle">
-                    <div class="rcs-toggle-switch-knob"></div>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -1206,6 +1251,7 @@ export async function onLoad(ctx) {
           const BASE_URL = '';
           const POCKET_PREFIX = 'pocket1';
           const TOOLSETTER_PREFIX = 'toolsetter';
+          const PARKING_PREFIX = 'parking';
 
           const initialConfig = JSON.parse('${initialConfigJson}');
 
@@ -1280,6 +1326,11 @@ export async function onLoad(ctx) {
               getInput('rcs-toolsetter-z').value = initialConfig.toolSetter.z || 0;
             }
 
+            if (initialConfig.parking) {
+              getInput('rcs-parking-x').value = initialConfig.parking.x || 0;
+              getInput('rcs-parking-y').value = initialConfig.parking.y || 0;
+            }
+
             getInput('rcs-zengagement').value = initialConfig.zEngagement || -50;
             getInput('rcs-seek-distance').value = initialConfig.seekDistance || 50;
             getInput('rcs-seek-feedrate').value = initialConfig.seekFeedrate || 100;
@@ -1291,15 +1342,6 @@ export async function onLoad(ctx) {
                 autoSwapToggle.classList.add('active');
               } else {
                 autoSwapToggle.classList.remove('active');
-              }
-            }
-
-            const confirmUnloadToggle = document.getElementById('rcs-confirm-unload-toggle');
-            if (confirmUnloadToggle) {
-              if (initialConfig.confirmUnload) {
-                confirmUnloadToggle.classList.add('active');
-              } else {
-                confirmUnloadToggle.classList.remove('active');
               }
             }
 
@@ -1371,7 +1413,6 @@ export async function onLoad(ctx) {
 
           const gatherFormData = () => {
             const autoSwapToggle = document.getElementById('rcs-autoswap-toggle');
-            const confirmUnloadToggle = document.getElementById('rcs-confirm-unload-toggle');
             const showMacroCommandToggle = document.getElementById('rcs-show-macro-command-toggle');
             const performTlsAfterHomeToggle = document.getElementById('rcs-perform-tls-after-home-toggle');
 
@@ -1385,12 +1426,15 @@ export async function onLoad(ctx) {
                 y: parseFloat(getInput('rcs-toolsetter-y').value) || 0,
                 z: parseFloat(getInput('rcs-toolsetter-z').value) || 0
               },
+              parking: {
+                x: parseFloat(getInput('rcs-parking-x').value) || 0,
+                y: parseFloat(getInput('rcs-parking-y').value) || 0
+              },
               zEngagement: parseFloat(getInput('rcs-zengagement').value) || -50,
               seekDistance: parseFloat(getInput('rcs-seek-distance').value) || 50,
               seekFeedrate: parseFloat(getInput('rcs-seek-feedrate').value) || 100,
               numberOfTools: parseInt(getInput('rcs-number-of-tools').value) || 1,
-              autoSwap: autoSwapToggle ? autoSwapToggle.classList.contains('active') : true,
-              confirmUnload: confirmUnloadToggle ? confirmUnloadToggle.classList.contains('active') : true,
+              autoSwap: autoSwapToggle ? autoSwapToggle.classList.contains('active') : false,
               showMacroCommand: showMacroCommandToggle ? showMacroCommandToggle.classList.contains('active') : false,
               performTlsAfterHome: performTlsAfterHomeToggle ? performTlsAfterHomeToggle.classList.contains('active') : false
             };
@@ -1500,14 +1544,27 @@ export async function onLoad(ctx) {
           const confirmUnloadToggle = document.getElementById('rcs-confirm-unload-toggle');
           const confirmUnloadRow = document.getElementById('rcs-confirm-unload-row');
 
-          const updateConfirmUnloadState = () => {
-            if (autoSwapToggle && confirmUnloadRow) {
-              if (autoSwapToggle.classList.contains('active')) {
+          const updateRapidChangeState = () => {
+            const isEnabled = autoSwapToggle && autoSwapToggle.classList.contains('active');
+
+            // Update Confirm Unload row
+            if (confirmUnloadRow) {
+              if (isEnabled) {
                 confirmUnloadRow.classList.remove('disabled');
               } else {
                 confirmUnloadRow.classList.add('disabled');
               }
             }
+
+            // Update X, Y, Z inputs and Grab button
+            const pocket1X = getInput('rcs-pocket1-x');
+            const pocket1Y = getInput('rcs-pocket1-y');
+            const zEngagement = getInput('rcs-zengagement');
+            const grabBtn = getInput('rcs-pocket1-grab');
+
+            [pocket1X, pocket1Y, zEngagement, grabBtn].forEach(el => {
+              if (el) el.disabled = !isEnabled;
+            });
           };
 
           if (autoSwapToggle) {
@@ -1519,13 +1576,13 @@ export async function onLoad(ctx) {
                 showAutoSwapWarning(function(confirmed) {
                   if (confirmed) {
                     autoSwapToggle.classList.add('active');
-                    updateConfirmUnloadState();
+                    updateRapidChangeState();
                   }
                 });
               } else {
                 // Turning OFF - no warning needed
                 autoSwapToggle.classList.remove('active');
-                updateConfirmUnloadState();
+                updateRapidChangeState();
               }
             });
           }
@@ -1542,12 +1599,12 @@ export async function onLoad(ctx) {
             // Create header
             const header = document.createElement('div');
             header.style.cssText = 'font-size: 1.5rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 24px; text-align: center;';
-            header.textContent = 'Auto Swap Warning';
+            header.textContent = 'RapidChangeSolo';
 
             // Create message
             const message = document.createElement('div');
             message.style.cssText = 'font-size: 1rem; line-height: 1.6; color: var(--color-text-primary); background: color-mix(in srgb, var(--color-warning) 15%, transparent); border: 2px solid var(--color-warning); border-radius: var(--radius-small); padding: 16px; margin-bottom: 16px;';
-            message.innerHTML = '<strong>Auto Swap is designed specifically for RapidChangeSolo tool holders.</strong><br><br>When enabled, the spindle will automatically spin during tool swapping operations. This is required for the RapidChangeSolo mechanism to properly engage and release tools.<br><br><strong>Only enable this if you are using a RapidChangeSolo tool holder system.</strong>';
+            message.innerHTML = 'When enabled, the spindle will automatically spin during tool swapping operations. This is required for the RapidChangeSolo mechanism to properly engage and release tools.<br><br><strong>Only enable this if you are using a RapidChangeSolo tool holder system.</strong>';
 
             // Create buttons container
             const actions = document.createElement('div');
@@ -1615,10 +1672,11 @@ export async function onLoad(ctx) {
           }
 
           applyInitialSettings();
-          updateConfirmUnloadState();
+          updateRapidChangeState();
 
           registerButton(POCKET_PREFIX, 'rcs-pocket1-grab');
-          registerButton('toolsetter', 'rcs-toolsetter-grab');
+          registerButton(TOOLSETTER_PREFIX, 'rcs-toolsetter-grab');
+          registerButton(PARKING_PREFIX, 'rcs-parking-grab');
 
           fetchInitialCoordinates();
         })();
