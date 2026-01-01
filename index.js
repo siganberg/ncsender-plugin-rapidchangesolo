@@ -25,6 +25,7 @@ const buildInitialConfig = (raw = {}) => ({
 
   // UI Toggle Settings
   autoSwap: raw.autoSwap === true,
+  pauseBeforeUnload: raw.pauseBeforeUnload !== false,
   showMacroCommand: raw.showMacroCommand ?? false,
   performTlsAfterHome: raw.performTlsAfterHome ?? false,
 
@@ -93,17 +94,26 @@ function createToolLengthSetRoutine(settings) {
 // Helper: Tool unload routine
 function createToolUnload(settings, targetTool) {
   const messageCode = settings.autoSwap ? 'PLUGIN_RCS:UNLOAD_MESSAGE' : 'PLUGIN_RCS:UNLOAD_MESSAGE_MANUAL';
-  const confirmationLines = `
+  const needsPause = settings.pauseBeforeUnload;
+  const confirmationLines = needsPause ? `
     (MSG, ${messageCode})
-    M0`;
+    M0` : '';
 
   if (settings.autoSwap) {
-    // RapidChangeSolo ON: Move to manual location first, show message, then go to pocket1 to unload
-    return `
-      G53 G0 Z${settings.zSafe}
+    // RapidChangeSolo ON
+    const pauseSequence = needsPause ? `
       G53 G0 X${settings.parking.x} Y${settings.parking.y}
       ${confirmationLines}
-      G53 G0 X${settings.pocket1.x} Y${settings.pocket1.y}
+      G53 G0 X${settings.pocket1.x} Y${settings.pocket1.y}` : `
+      G53 G0 X${settings.pocket1.x} Y${settings.pocket1.y}`;
+
+    // Only move to manual location after unload if we're swapping tools (targetTool !== 0)
+    const moveToManualAfterUnload = targetTool !== 0 ? `
+      G53 G0 X${settings.parking.x} Y${settings.parking.y}` : '';
+
+    return `
+      G53 G0 Z${settings.zSafe}
+      ${pauseSequence}
       G53 G0 Z${settings.zEngagement + settings.zSpinOff}
       G65P6
       M4 S${settings.unloadRpm}
@@ -113,15 +123,21 @@ function createToolUnload(settings, targetTool) {
       M5
       M61 Q0
       G53 G0 Z${settings.zSafe}
-      G53 G0 X${settings.parking.x} Y${settings.parking.y}
+      ${moveToManualAfterUnload}
     `.trim();
   } else {
     // RapidChangeSolo OFF: Move to manual tool change location with Z0
+    // Only show confirmation if unloading only (not swapping) - swap shows combined message in load
+    const isUnloadOnly = targetTool === 0;
+    const manualConfirmation = isUnloadOnly ? `
+      (MSG, ${messageCode})
+      M0` : '';
+
     return `
       G53 G0 Z${settings.zSafe}
       G53 G0 X${settings.parking.x} Y${settings.parking.y}
       G53 G0 Z0
-      ${confirmationLines}
+      ${manualConfirmation}
       M61 Q0
     `.trim();
   }
@@ -129,7 +145,10 @@ function createToolUnload(settings, targetTool) {
 
 // Helper: Tool load routine
 function createToolLoad(settings, toolNumber, hasUnload) {
-  const messageCode = settings.autoSwap ? `PLUGIN_RCS:LOAD_MESSAGE_${toolNumber}` : `PLUGIN_RCS:LOAD_MESSAGE_MANUAL_${toolNumber}`;
+  // For manual mode swap, use a combined message that tells user to remove old and install new
+  const messageCode = settings.autoSwap
+    ? `PLUGIN_RCS:LOAD_MESSAGE_${toolNumber}`
+    : (hasUnload ? `PLUGIN_RCS:SWAP_MESSAGE_MANUAL_${toolNumber}` : `PLUGIN_RCS:LOAD_MESSAGE_MANUAL_${toolNumber}`);
 
   // If no unload happened, we need to move to manual location first
   const moveToManualLocation = hasUnload ? '' : `
@@ -598,6 +617,11 @@ export async function onLoad(ctx) {
     'PLUGIN_RCS:UNLOAD_MESSAGE_MANUAL': {
       title: 'Unloading',
       message: 'Please remove the current bit, then click <em>"Continue"</em> to proceed or <em>"Abort"</em> to cancel.',
+      continueLabel: 'Continue'
+    },
+    'PLUGIN_RCS:SWAP_MESSAGE_MANUAL': {
+      title: 'Tool Change',
+      message: 'Please remove the current bit and install {toolNumber} securely, then click <em>"Continue"</em> to proceed or <em>"Abort"</em> to cancel.',
       continueLabel: 'Continue'
     },
     'PLUGIN_RCS:LOAD_MESSAGE': {
@@ -1178,6 +1202,13 @@ export async function onLoad(ctx) {
                   </div>
                 </div>
 
+                <div class="rcs-toggle-row" id="rcs-pause-before-unload-row">
+                  <span class="rcs-toggle-label">Pause before Unload</span>
+                  <div class="rcs-toggle-switch active" id="rcs-pause-before-unload-toggle">
+                    <div class="rcs-toggle-switch-knob"></div>
+                  </div>
+                </div>
+
               </div>
             </div>
 
@@ -1345,6 +1376,15 @@ export async function onLoad(ctx) {
               }
             }
 
+            const pauseBeforeUnloadToggle = document.getElementById('rcs-pause-before-unload-toggle');
+            if (pauseBeforeUnloadToggle) {
+              if (initialConfig.pauseBeforeUnload) {
+                pauseBeforeUnloadToggle.classList.add('active');
+              } else {
+                pauseBeforeUnloadToggle.classList.remove('active');
+              }
+            }
+
             const showMacroCommandToggle = document.getElementById('rcs-show-macro-command-toggle');
             if (showMacroCommandToggle) {
               if (initialConfig.showMacroCommand) {
@@ -1413,6 +1453,7 @@ export async function onLoad(ctx) {
 
           const gatherFormData = () => {
             const autoSwapToggle = document.getElementById('rcs-autoswap-toggle');
+            const pauseBeforeUnloadToggle = document.getElementById('rcs-pause-before-unload-toggle');
             const showMacroCommandToggle = document.getElementById('rcs-show-macro-command-toggle');
             const performTlsAfterHomeToggle = document.getElementById('rcs-perform-tls-after-home-toggle');
 
@@ -1435,6 +1476,7 @@ export async function onLoad(ctx) {
               seekFeedrate: parseFloat(getInput('rcs-seek-feedrate').value) || 100,
               numberOfTools: parseInt(getInput('rcs-number-of-tools').value) || 1,
               autoSwap: autoSwapToggle ? autoSwapToggle.classList.contains('active') : false,
+              pauseBeforeUnload: pauseBeforeUnloadToggle ? pauseBeforeUnloadToggle.classList.contains('active') : true,
               showMacroCommand: showMacroCommandToggle ? showMacroCommandToggle.classList.contains('active') : false,
               performTlsAfterHome: performTlsAfterHomeToggle ? performTlsAfterHomeToggle.classList.contains('active') : false
             };
@@ -1541,6 +1583,7 @@ export async function onLoad(ctx) {
           };
 
           const autoSwapToggle = document.getElementById('rcs-autoswap-toggle');
+          const pauseBeforeUnloadRow = document.getElementById('rcs-pause-before-unload-row');
 
           const updateRapidChangeState = () => {
             const isEnabled = autoSwapToggle && autoSwapToggle.classList.contains('active');
@@ -1554,6 +1597,15 @@ export async function onLoad(ctx) {
             [pocket1X, pocket1Y, zEngagement, grabBtn].forEach(el => {
               if (el) el.disabled = !isEnabled;
             });
+
+            // Update Pause before Unload row
+            if (pauseBeforeUnloadRow) {
+              if (isEnabled) {
+                pauseBeforeUnloadRow.classList.remove('disabled');
+              } else {
+                pauseBeforeUnloadRow.classList.add('disabled');
+              }
+            }
           };
 
           if (autoSwapToggle) {
@@ -1625,6 +1677,13 @@ export async function onLoad(ctx) {
             container.appendChild(actions);
             overlay.appendChild(container);
             document.body.appendChild(overlay);
+          }
+
+          const pauseBeforeUnloadToggle = document.getElementById('rcs-pause-before-unload-toggle');
+          if (pauseBeforeUnloadToggle) {
+            pauseBeforeUnloadToggle.addEventListener('click', function() {
+              pauseBeforeUnloadToggle.classList.toggle('active');
+            });
           }
 
           const showMacroCommandToggle = document.getElementById('rcs-show-macro-command-toggle');
