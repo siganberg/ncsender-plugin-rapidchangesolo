@@ -1,8 +1,7 @@
 ## What's Changed
 
-### ✨ New Features
-- Added manual location setting for more flexible positioning
-- Added separate location setting for RapidChangeSolo
+### 🐛 Bug Fixes
+- Fixed various bugs for improved stability
 
 ### 🔧 Improvements
-- Removed confirmation dialog when unloading for a smoother workflow
+- Optimized travel movements for better performance
