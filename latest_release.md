@@ -1,4 +1,4 @@
 ## What's Changed
 
-### 🔧 Improvements
-- Enhanced tool length measurement accuracy by leveraging TLS offset from the tool library
+### ✨ New Features
+- Added support for TLS Z offset, allowing more precise tool length compensation during rapid tool changes
