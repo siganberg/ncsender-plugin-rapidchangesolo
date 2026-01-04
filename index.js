@@ -64,7 +64,7 @@ const resolveServerPort = (pluginSettings = {}, appSettings = {}) => {
 // Helper: Fetch tool offsets from tool library
 async function getToolOffsets(toolNumber, ctx) {
   if (!toolNumber || toolNumber <= 0) {
-    return { x: 0, y: 0 };
+    return { x: 0, y: 0, z: 0 };
   }
   try {
     const pluginSettings = ctx.getSettings() || {};
@@ -75,13 +75,13 @@ async function getToolOffsets(toolNumber, ctx) {
       const tools = await response.json();
       const tool = tools.find(t => t.toolNumber === toolNumber);
       if (tool && tool.offsets) {
-        return { x: tool.offsets.x || 0, y: tool.offsets.y || 0 };
+        return { x: tool.offsets.x || 0, y: tool.offsets.y || 0, z: tool.offsets.z || 0 };
       }
     }
   } catch (error) {
     ctx.log('Failed to fetch tool offsets:', error);
   }
-  return { x: 0, y: 0 };
+  return { x: 0, y: 0, z: 0 };
 }
 
 // Helper: Format and split G-code into array of commands
@@ -93,14 +93,20 @@ const formatGCode = (gcode) => {
 };
 
 // Helper: Create tool length setter routine
-function createToolLengthSetRoutine(settings, toolOffsets = { x: 0, y: 0 }) {
+function createToolLengthSetRoutine(settings, toolOffsets = { x: 0, y: 0, z: 0 }) {
   const tlsX = settings.toolSetter.x + (toolOffsets.x || 0);
   const tlsY = settings.toolSetter.y + (toolOffsets.y || 0);
+  const tlsZ = toolOffsets.z || 0;
   const fineProbeFeedrate = settings.seekFeedrate < 75 ? settings.seekFeedrate : 75;
+
+  // Extra Z rapid move for shorter tools (z offset is typically negative)
+  const extraZMove = tlsZ !== 0 ? `G91 G0 Z${tlsZ}\n    G90` : '';
+
   return `
     G53 G0 Z${settings.zSafe}
     G53 G0 X${tlsX} Y${tlsY}
     G53 G0 Z${settings.toolSetter.z}
+    ${extraZMove}
     G43.1 Z0
     G38.2 G91 Z-${settings.seekDistance} F${settings.seekFeedrate}
     G38.4 G91 Z5 F${fineProbeFeedrate}
@@ -279,8 +285,8 @@ async function handleTLSCommand(commands, context, settings, ctx) {
   // Get current tool and fetch its TLS offsets
   const currentTool = context.machineState?.tool ?? 0;
   const toolOffsets = await getToolOffsets(currentTool, ctx);
-  if (toolOffsets.x !== 0 || toolOffsets.y !== 0) {
-    ctx.log(`Applying TLS offsets for T${currentTool}: X=${toolOffsets.x}, Y=${toolOffsets.y}`);
+  if (toolOffsets.x !== 0 || toolOffsets.y !== 0 || toolOffsets.z !== 0) {
+    ctx.log(`Applying TLS offsets for T${currentTool}: X=${toolOffsets.x}, Y=${toolOffsets.y}, Z=${toolOffsets.z}`);
   }
 
   const tlsCommand = commands[tlsIndex];
@@ -380,8 +386,8 @@ async function handleHomeCommand(commands, context, settings, ctx) {
   // Get current tool and fetch its TLS offsets
   const currentTool = context.machineState?.tool ?? 0;
   const toolOffsets = await getToolOffsets(currentTool, ctx);
-  if (toolOffsets.x !== 0 || toolOffsets.y !== 0) {
-    ctx.log(`Applying TLS offsets for T${currentTool}: X=${toolOffsets.x}, Y=${toolOffsets.y}`);
+  if (toolOffsets.x !== 0 || toolOffsets.y !== 0 || toolOffsets.z !== 0) {
+    ctx.log(`Applying TLS offsets for T${currentTool}: X=${toolOffsets.x}, Y=${toolOffsets.y}, Z=${toolOffsets.z}`);
   }
 
   const homeCommand = commands[homeIndex];
@@ -581,8 +587,8 @@ async function handleM6Command(commands, context, settings, ctx) {
 
   // Fetch TLS offsets for the NEW tool being loaded
   const toolOffsets = await getToolOffsets(toolNumber, ctx);
-  if (toolOffsets.x !== 0 || toolOffsets.y !== 0) {
-    ctx.log(`Applying TLS offsets for T${toolNumber}: X=${toolOffsets.x}, Y=${toolOffsets.y}`);
+  if (toolOffsets.x !== 0 || toolOffsets.y !== 0 || toolOffsets.z !== 0) {
+    ctx.log(`Applying TLS offsets for T${toolNumber}: X=${toolOffsets.x}, Y=${toolOffsets.y}, Z=${toolOffsets.z}`);
   }
 
   ctx.log(`M6 detected with tool T${toolNumber} ${location}, current tool: T${currentTool}, executing tool change program`);
